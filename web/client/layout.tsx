@@ -37,7 +37,6 @@
 
 import { attrs, css, type Handle, type RemixNode } from "@remix-run/component";
 
-import { base, BASE_META_NAME } from "./base.ts";
 import { HELPER_BUTTON_ID, HELPER_SRC_ATTRIBUTE } from "./helper/button.ts";
 import { NavAuth } from "./islands/nav_auth.tsx"; // [feature:signin]
 import { routes } from "./routes.ts";
@@ -175,20 +174,8 @@ export function Layout(handle: Handle<LayoutProps>) {
               </>
             )
             : null}
-          {
-            /*
-            The deploy prefix, for the browser. It cannot work this out for itself — `/repo/blog`
-            and `/blog` are the same page under two deploys — and `client/spa/app.tsx` matches URLs
-            against route patterns that carry it. See `client/base.ts`.
-          */
-          }
-          <meta name={BASE_META_NAME} content={base} />
-          <link rel="stylesheet" href={`${base}/static/app.css`} />
-          <link
-            rel="icon"
-            type="image/svg+xml"
-            href={`${base}/static/favicon.svg`}
-          />
+          <link rel="stylesheet" href="/static/app.css" />
+          <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
           {(props.script?.preloads ?? []).map((href) => (
             <link key={href} rel="modulepreload" href={href} />
           ))}
@@ -268,7 +255,7 @@ export function Shell(handle: Handle<ShellProps>) {
             href={routes.home.href()}
             data-rmx-document={document}
           >
-            Remix3 on Deno Template
+            Task Tree
           </a>
           <nav mix={navStyle}>
             <a href={routes.home.href()} data-rmx-document={document}>Home</a>

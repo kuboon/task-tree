@@ -7,8 +7,8 @@ Deno.test("GET / returns the shell with nav links and the runtime script", async
   assertStringIncludes(res.headers.get("content-type") ?? "", "text/html");
   const html = await res.text();
   assertStringIncludes(html, "<!DOCTYPE html>");
-  assertStringIncludes(html, "Remix3 on Deno Template");
-  assertStringIncludes(html, "kuboon.github.io/deno-remix-tmpl");
+  assertStringIncludes(html, "Task Tree");
+  assertStringIncludes(html, 'href="/my"');
   assertStringIncludes(html, 'href="/hydration"');
   assertStringIncludes(html, '<script type="module" src="/assets/hydration');
   // Soft navigation is the runtime's default now; no frame target attributes.

@@ -2,33 +2,9 @@
   "tasks": {
     "dev": "deno serve -P=dev --watch --port 8000 router.tsx",
     "serve": "deno serve -P=dev router.tsx",
-    "build": "deno run -c deno.json -P=build jsr:@remix-kbn/ssg/build.ts --out ../dist",
     "check": "deno check ."
   },
   "permissions": {
-    "build": {
-      "read": [
-        "../.."
-      ],
-      "write": [
-        "../dist"
-      ],
-      "env": {
-        "allow": [
-          "BASE_URL"
-        ],
-        "ignore": [
-          "NODE_ENV",
-          "VSCODE_TEXTMATE_DEBUG",
-          "IDP_ORIGIN",
-          "RP_ORIGIN",
-          "RP_SIGNING_KEY_JWK",
-          "TURSO_DATABASE_URL",
-          "TURSO_AUTH_TOKEN"
-        ]
-      },
-      "import": true
-    },
     "dev": {
       "read": [
         "../.."
@@ -43,7 +19,6 @@
           "TURSO_AUTH_TOKEN"
         ],
         "ignore": [
-          "BASE_URL",
           "NODE_ENV",
           "VSCODE_TEXTMATE_DEBUG"
         ]

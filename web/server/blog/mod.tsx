@@ -187,7 +187,7 @@ export const blogController = createController(routes.blog, {
 
       return context.render(
         <Layout
-          title={`${article.title} — Remix3 on Deno Template`}
+          title={`${article.title} — Task Tree`}
           description={article.summary}
           image={articleImages.get(article.slug) ?? null}
           script={ArticlePage.hydrate ? clientRuntime : null}

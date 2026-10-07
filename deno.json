@@ -9,7 +9,6 @@
   "tasks": {
     "dev": "deno task --cwd web/server dev",
     "serve": "deno task --cwd web/server serve",
-    "build": "deno task --cwd web/server build",
     "test": "deno test -P --ignore=web/tests",
     "test:browser": "deno task --cwd web/tests test",
     "check": "deno task --cwd web/client check && deno task --cwd web/server check && deno check packages && deno lint && deno fmt --check"

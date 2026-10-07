@@ -5,7 +5,7 @@ import { Total } from "../islands/total.tsx";
 import { cardStyle } from "../theme.ts";
 import { color } from "../tokens.ts";
 
-export const title = "Hydration — Remix3 on Deno Template";
+export const title = "Hydration — Task Tree";
 export const description = "clientEntry を使った SSR + hydrate のサンプル。";
 
 /** This page places a client entry, so the shell boots the runtime for it. */

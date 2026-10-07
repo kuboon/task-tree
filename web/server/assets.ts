@@ -15,13 +15,11 @@
 
 import { createAssetServer } from "@remix-kbn/assets-deno";
 
-import { base } from "../client/base.ts";
-
 /** The directory every entrypoint below, and every `clientEntry()` id, is resolved against. */
 const clientDir = new URL("../client/", import.meta.url);
 
 /** Where the chunks are served, and where `entryUrl()` resolves against. */
-export const assetsPath = `${base}/assets`;
+export const assetsPath = "/assets";
 
 export const assets = await createAssetServer({
   rootDir: decodeURIComponent(clientDir.pathname),
@@ -42,7 +40,6 @@ export const assets = await createAssetServer({
   ],
   basePath: assetsPath,
   mode: "bundle",
-  // Source maps would double the file count of a static deploy for no gain; the sources are on
-  // GitHub.
+  // The sources are on GitHub; no source maps.
   bundle: { sourcemap: "none" },
 });

@@ -23,12 +23,11 @@ import { helperAgentController } from "@remix-kbn/helper-agent/controller";
 import { openHelperAgent } from "@remix-kbn/helper-agent/client";
 import type { HelperAgentPanel } from "@remix-kbn/helper-agent/client";
 
-import { base } from "../base.ts";
 import { siteAgent } from "./agent.ts";
 import { pageTools } from "./tools.ts";
 
 /** The one route the in-page router answers. */
-const CHAT_PATH = `${base}/helper-agent`;
+const CHAT_PATH = "/helper-agent";
 
 /**
  * Shows the chat, or hides it again.

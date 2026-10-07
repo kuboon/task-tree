@@ -1,4 +1,4 @@
-# deno-remix-tmpl
+# task-tree
 
 Remix v3 + Deno のテンプレート。DPoP (RFC 9449) セッションマネージャーと
 id.kbn.one 連携の push 通知を含む。

@@ -1,16 +1,19 @@
-# deno-remix-tmpl
+# task-tree
 
-Remix v3 + Deno のリファレンス実装 (DPoP セッションマネージャー付き)。
+チーム用のタスク管理ツール。Remix v3 + Deno。
 
-## デモ
+- アカウント認証: [id.kbn.one](https://id.kbn.one)（パスキー + DPoP セッション）
+- チームがタスクを複数持ち、タスク同士が依存関係を持つ
+- MCP サーバーを内蔵し、エージェントからも同じデータを操作できる
 
-- GitHub Pages (静的版): <https://kuboon.github.io/deno-remix-tmpl/>
-- Deno Deploy (サーバー版、`/api/*` あり):
-  <https://deno-remix-reference.kuboon-tokyo.deno.net/>
+設計メモは [docs/DESIGN.md](./docs/DESIGN.md)、開発のルールは
+[CLAUDE.md](./CLAUDE.md) を参照。
 
-このリポジトリは GitHub テンプレート。新しいアプリを作るときの手順は
-[TEMPLATE.md](./TEMPLATE.md)（static / server
-モードの選択、改変、不要機能の削除）、 開発のルールは [CLAUDE.md](./CLAUDE.md)
-を参照。
+## 開発
 
-ref: https://github.com/remix-run/remix
+```bash
+deno task dev           # 開発サーバー (http://localhost:8000)
+deno task check         # 型チェック + lint + fmt
+deno task test          # ユニットテスト
+deno task test:browser  # ブラウザ smoke テスト
+```

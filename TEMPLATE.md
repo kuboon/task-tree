@@ -13,6 +13,10 @@
 
 ## ステップ 0: モードを選ぶ（最初の分かれ目）
 
+> **task-tree は server モードを選択済み**（MCP サーバーとチーム DB が server
+> API を要する）。 下の「server モードにする」の削除は実施済み。デプロイ先は
+> Deno Deploy。
+
 **server API（`/api/*`、サーバー側の DB・秘密鍵）を使うか。**
 
 |                           | static モード                         | server モード                                   |
@@ -108,15 +112,15 @@ server API に依存する機能だけ （サーバーからの通知送信 =
 
 ## ステージ 1: 改変 init（使うコードを自分のアプリ用に書き換える）
 
-- [ ] アプリ名: `CLAUDE.md` の見出し、`README.md`、`layout.tsx`
+- [x] アプリ名: `CLAUDE.md` の見出し、`README.md`、`layout.tsx`
       のブランド名（`Remix3 on Deno Template`）、 `og/mod.ts` の `SITE_NAME`、各
       `pages/*.tsx` の `title`（`— Remix3 on Deno Template`）、`apm.yml`
-- [ ] `client/idp.ts` の `IDP_ORIGIN`（サインインを使うなら）。`RP_ORIGIN` は
+- [x] `client/idp.ts` の `IDP_ORIGIN`（サインインを使うなら）。`RP_ORIGIN` は
       IdP の `AUTHORIZE_WHITELIST` に登録が必要
-- [ ] `<html lang>`（`layout.tsx`）。ページが日本語なら `ja`
+- [x] `<html lang>`（`layout.tsx`）。ページが日本語なら `ja`
 - [ ] `client/static/favicon.svg`、`tokens.ts` / `static/app.css` の配色
-- [ ] デモのリンク（`README.md`、`pages/index.tsx`）を自分のデプロイ先の URL に
-- [ ] `pages/index.tsx` を自分のトップページに置き換える
+- [x] デモのリンク（`README.md`、`pages/index.tsx`）を自分のデプロイ先の URL に
+- [x] `pages/index.tsx` を自分のトップページに置き換える
 
 ## ステージ 2: cleanup（実装後に使わない機能を消す）
 
