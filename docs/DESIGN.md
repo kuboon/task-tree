@@ -7,8 +7,12 @@
 
 - **認証は id.kbn.one**。ブラウザはテンプレ既存の DPoP bind フロー
   （`/authorize` → `/session`）でサインインする。
-- **server モード**（Deno Deploy）。MCP サーバーとチーム DB はサーバー API が
-  要るので static（GitHub Pages）は捨てた。init の内容は `TEMPLATE.md`。
+- **Cloudflare Workers + D1**。テンプレの static（GitHub Pages）と Deno 専用部分
+  （起動時 `Deno.bundle`、Deno KV、Turso、og 画像、デモ機能）は外した。開発と
+  テストは Deno ホスト（`web/server/router.tsx`）、本番は Worker
+  （`web/server/worker.ts`）。構成は `CLAUDE.md`。
+- **DB は D1**（`@remix-kbn/data-table-d1` + `@remix-run/data-table`）。マイグ
+  レーションは `db/migrations/`、CLI は `deno task db`。
 - **チーム → タスク（複数） → 依存関係**。最初に作る機能は「チーム作成」。
 - **MCP サーバーを内蔵**する。
 
@@ -57,15 +61,13 @@ MCP 実装は `@modelcontextprotocol/sdk` の `McpServer` +
 `WebStandardStreamableHTTPServerTransport`（fetch ベース）を fetch-router
 のアクションから呼ぶ想定。Deno で動くことは実装時に確認する。
 
-### 3. データストア: Turso (libSQL) + `@remix-run/data-table`
+### 3. データストア: D1 + `@remix-run/data-table`（決定済み）
 
 依存関係のグラフ（「このタスクを塞いでいるもの」「着手可能なタスク」）は JOIN
-と再帰 CTE が書けるリレーショナル DB が楽。テンプレに Turso の配線と
-非同期アダプタ（`@remix-kbn/data-table-sqlite-turso`）が既にある。
-マイグレーションは `jsr:@remix-kbn/data-table-sqlite-turso/cli`。
-
-対案は Deno KV（配線不要、ゼロ設定）。チーム単位でタスク全件を読んでメモリ上で
-グラフを組む設計なら十分だが、横断検索やフィルタを足すたびに苦しくなる。
+と再帰 CTE が書けるリレーショナル DB が楽。D1 は SQLite 方言で、
+`@remix-kbn/data-table-d1` が data-table を D1 binding で駆動する。制約:
+`transaction()` は `batch()` に変換されるので、トランザクション内で「書いた
+行を読む」「update() の戻り値を使う」はできない（パッケージ README）。
 
 ### 4. データモデル（案）
 
@@ -114,19 +116,18 @@ task_deps     task_id, depends_on_id   PK(task_id, depends_on_id)
 
 - **Q1** 「task-tree」の tree は、親子（サブタスク分解）か、依存関係のグラフか、
   両方か。提案は両方だが、まず依存関係だけでも成立する。
-- **Q2** DB は Turso か Deno KV か。提案は Turso。
-- **Q3** メンバー追加は招待リンクで良いか。
-- **Q4** タスクの属性はこれで足りるか（期限・優先度・ラベル・担当者の要否）。
-- **Q5** MCP ツールの範囲（読み取りだけか、書き込みも含むか）。提案は上記 7。
-- **Q6** テンプレのデモ機能（blog / showcase / spa / fullscreen / hydration /
-  helper）はいつ消すか。提案は「チーム作成」が入った直後に一括で消す。
-- **Q7** デプロイ先の URL（`RP_ORIGIN`）。IdP の whitelist に入れる必要がある。
+- **Q2** メンバー追加は招待リンクで良いか。
+- **Q3** タスクの属性はこれで足りるか（期限・優先度・ラベル・担当者の要否）。
+- **Q4** MCP ツールの範囲（読み取りだけか、書き込みも含むか）。提案は上記 7。
+- **Q5** デプロイ先の URL（`RP_ORIGIN`）。`wrangler.toml` は
+  `https://task-tree.kuboon.workers.dev` を仮置き。IdP の whitelist に入れる
+  必要がある（`workers.dev` は現状含まれていない可能性が高い）。
 
 ## 実装順（案）
 
+0. ~~Cloudflare Workers + D1 への移植~~（済）
 1. ユーザー: `jws` 検証ミドルウェア、`users` テーブル、表示名の設定（`/my`）
 2. チーム作成 / 一覧 / 招待リンク
 3. タスク CRUD + 依存関係（DAG 制約）+ 着手可能ビュー
 4. MCP（`/.well-known/oauth-protected-resource`、`/mcp`、ツール）
-5. テンプレのデモ機能の削除、`TEMPLATE.md` 削除、`CLAUDE.md` 書き換え
-6. 通知
+5. 通知

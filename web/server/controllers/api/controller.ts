@@ -7,35 +7,39 @@
 
 import { createController } from "@remix-run/fetch-router";
 
-import { dpop, DpopSession } from "../../middleware/dpop.ts";
+import { createDpopMiddleware, DpopSession } from "../../middleware/dpop.ts";
 import { routes } from "../../../client/routes.ts";
 
-export const apiController = createController(routes.api.protected, {
-  middleware: [dpop],
-  actions: {
-    get(context) {
-      const session = context.get(DpopSession);
-      const [data] = session.data;
-      return Response.json({
-        thumbprint: session.thumbprint,
-        sessionData: data,
-        message: "DPoP proof verified successfully",
-      });
-    },
+export function createApiController(
+  dpop: ReturnType<typeof createDpopMiddleware>,
+) {
+  return createController(routes.api.protected, {
+    middleware: [dpop],
+    actions: {
+      get(context) {
+        const session = context.get(DpopSession);
+        const [data] = session.data;
+        return Response.json({
+          thumbprint: session.thumbprint,
+          sessionData: data,
+          message: "DPoP proof verified successfully",
+        });
+      },
 
-    async post(context) {
-      const session = context.get(DpopSession);
-      const body = await context.request.json() as Record<string, unknown>;
-      for (const [k, v] of Object.entries(body)) {
-        session.set(k, v);
-      }
-      const [data] = session.data;
+      async post(context) {
+        const session = context.get(DpopSession);
+        const body = await context.request.json() as Record<string, unknown>;
+        for (const [k, v] of Object.entries(body)) {
+          session.set(k, v);
+        }
+        const [data] = session.data;
 
-      return Response.json({
-        thumbprint: session.thumbprint,
-        sessionData: data,
-        message: "Session data updated",
-      });
+        return Response.json({
+          thumbprint: session.thumbprint,
+          sessionData: data,
+          message: "Session data updated",
+        });
+      },
     },
-  },
-});
+  });
+}

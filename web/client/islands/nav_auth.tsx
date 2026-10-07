@@ -18,18 +18,19 @@ import {
   type SerializableValue,
 } from "@remix-run/component";
 
+import { clientModule } from "../client_entry.ts";
 import { IDP_ORIGIN } from "../idp.ts";
 import { sessionStore } from "../session.ts";
 import { actionStyle, primaryStyle } from "../theme.ts";
 
 export interface NavAuthProps {
-  /** App-relative href of the my-page, e.g. `/my` (carries the deploy prefix). */
+  /** Href of the my-page, e.g. `/my`. */
   myHref: string;
   [key: string]: SerializableValue;
 }
 
 export const NavAuth = clientEntry(
-  import.meta.url,
+  clientModule("islands/nav_auth.tsx", "NavAuth"),
   function NavAuth(handle: Handle<NavAuthProps>) {
     if (typeof document !== "undefined") {
       // Re-render whenever the shared session changes (sign-in/out anywhere).

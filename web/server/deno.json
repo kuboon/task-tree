@@ -9,14 +9,16 @@
       "read": [
         "../.."
       ],
+      "write": [
+        "../../data"
+      ],
       "env": {
         "allow": [
           "PORT",
           "IDP_ORIGIN",
           "RP_ORIGIN",
           "RP_SIGNING_KEY_JWK",
-          "TURSO_DATABASE_URL",
-          "TURSO_AUTH_TOKEN"
+          "D1_LOCAL_PATH"
         ],
         "ignore": [
           "NODE_ENV",

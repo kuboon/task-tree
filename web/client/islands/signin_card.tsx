@@ -20,6 +20,7 @@ import {
   type SerializableValue,
 } from "@remix-run/component";
 
+import { clientModule } from "../client_entry.ts";
 import { sessionStore } from "../session.ts";
 import { actionStyle, alertStyle, cardStyle } from "../theme.ts";
 
@@ -31,7 +32,7 @@ export interface SignInCardProps {
 type Variant = "info" | "success" | "error" | "";
 
 export const SignInCard = clientEntry(
-  import.meta.url,
+  clientModule("islands/signin_card.tsx", "SignInCard"),
   function SignInCard(handle: Handle<SignInCardProps>) {
     let signoutBusy = false;
     // Transient message for a user action (sign-out); otherwise the status is

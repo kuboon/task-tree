@@ -1,0 +1,24 @@
+# Cloudflare Workers deployment. `deno task build` writes both things this points at.
+name = "task-tree"
+main = "web/dist/worker.js"
+compatibility_date = "2026-10-01"
+
+# The chunks, `static/`, `sw.js` and the asset manifest. The platform answers requests for these
+# before the Worker runs; the Worker reads the manifest through the binding.
+[assets]
+directory = "web/dist/public"
+binding = "ASSETS"
+
+# `wrangler d1 create task-tree`, then paste the id it prints.
+[[d1_databases]]
+binding = "DB"
+database_name = "task-tree"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[vars]
+IDP_ORIGIN = "https://id.kbn.one"
+# This Worker's public origin; must be on the IdP's AUTHORIZE_WHITELIST.
+RP_ORIGIN = "https://task-tree.kuboon.workers.dev"
+
+# Secrets (`wrangler secret put <NAME>`), not here:
+#   RP_SIGNING_KEY_JWK — a fixed ES256 private JWK; without it every isolate signs with its own key.

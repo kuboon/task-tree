@@ -1,45 +1,83 @@
 /**
- * The browser modules, compiled as one graph.
+ * The browser modules: what they are, where they are served, and how the renderer finds them.
  *
- * Every entrypoint below goes into a single `Deno.bundle({ codeSplitting: true })` call, which is
- * the point: a module two of them import — the Remix UI runtime, the DPoP session store — is
- * emitted once, into a chunk both import, so it is one module at runtime rather than two copies
- * with two states.
- *
- * The islands are globbed rather than listed: an island is a file in a directory, and that is the
- * decision. `@remix-kbn/assets-deno` expands the pattern at startup, sorted, and fails on a
- * pattern that matches nothing.
- *
- * Every path here is under `client/`: this is the server compiling the browser's half of the app.
+ * This half is host-neutral and is all the Worker needs. The dev server's half — compiling the
+ * modules on startup with `@remix-kbn/assets-deno` — is `assets_deno.ts`, and the build
+ * (`build.ts`) uses that same compiler to write the chunks and the manifest the Worker reads.
  */
 
-import { createAssetServer } from "@remix-kbn/assets-deno";
+import { clientEntryPath } from "../client/client_entry.ts";
 
-/** The directory every entrypoint below, and every `clientEntry()` id, is resolved against. */
-const clientDir = new URL("../client/", import.meta.url);
+/** Where the chunks are served. */
+export const ASSETS_PATH = "/assets";
 
-/** Where the chunks are served, and where `entryUrl()` resolves against. */
-export const assetsPath = "/assets";
+/** The manifest the build writes next to the chunks, and the Worker reads back. */
+export const MANIFEST_PATH = `${ASSETS_PATH}/manifest.json`;
 
-export const assets = await createAssetServer({
-  rootDir: decodeURIComponent(clientDir.pathname),
-  entrypoints: [
-    // The client runtime. Every page loads this one; the islands ride in the chunks it shares
-    // with them.
-    "hydration.ts",
-    // Every island, by where it is rather than by name.
-    "islands/*.tsx",
-    // [feature:showcase]
-    "islands/showcase/*.tsx",
-    // [feature:helper] The chat's whole implementation, as an entrypoint rather than an island:
-    // nothing places it, the browser imports it by URL on the first click. See
-    // `client/helper/install.ts`.
-    "helper/panel.ts",
-    // [feature:spa] An entrypoint of its own: it starts a runtime instead of hydrating into one.
-    "spa/entry.ts",
-  ],
-  basePath: assetsPath,
-  mode: "bundle",
-  // The sources are on GitHub; no source maps.
-  bundle: { sourcemap: "none" },
-});
+/**
+ * The entrypoints, relative to `client/`: the runtime, and every island by where it is.
+ *
+ * Every entrypoint goes into a single `Deno.bundle({ codeSplitting: true })` call, which is the
+ * point: a module two of them import — the DPoP session store — is emitted once, into a chunk both
+ * import, so it is one module at runtime rather than two copies with two states.
+ */
+export const CLIENT_ENTRYPOINTS: readonly string[] = [
+  "hydration.ts",
+  "islands/*.tsx",
+];
+
+/** What the renderer asks for — structurally `@remix-run/assets`'s `ScriptEntry`. */
+export interface ScriptEntry {
+  href: string;
+  preloads: string[];
+  importMap: { imports: Record<string, string> };
+}
+
+/** What `render({ assets })` and the pages need of an asset server, on any host. */
+export interface AppAssets {
+  /**
+   * Resolve an entry id — an island's `clientModule(...)` id, or a bare entrypoint path such as
+   * `hydration.ts` — to its public URL and the chunks to preload behind it.
+   */
+  getScriptEntry(entry: string): Promise<ScriptEntry>;
+}
+
+/** One entry's resolution, as the build writes it. */
+export interface ManifestEntry {
+  href: string;
+  preloads: string[];
+}
+
+/** Entrypoint path (relative to `client/`) → where the build put it. */
+export type AssetManifest = Record<string, ManifestEntry>;
+
+/** The entrypoint an id names: an island id is unwrapped, anything else is taken as is. */
+export function entrypointFor(id: string): string {
+  return clientEntryPath(id) ?? id;
+}
+
+/**
+ * An asset server over a prebuilt manifest — the Worker's.
+ *
+ * @param load Reads the manifest, once; the result is kept for the life of the isolate
+ */
+export function createManifestAssets(
+  load: () => Promise<AssetManifest>,
+): AppAssets {
+  let manifest: Promise<AssetManifest> | undefined;
+  return {
+    async getScriptEntry(id) {
+      const entries = await (manifest ??= load());
+      const key = entrypointFor(id);
+      const entry = entries[key];
+      if (entry === undefined) {
+        throw new Error(
+          `"${key}" is not in the asset manifest. Known entries: ${
+            Object.keys(entries).join(", ")
+          }.`,
+        );
+      }
+      return { ...entry, importMap: { imports: {} } };
+    },
+  };
+}

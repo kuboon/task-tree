@@ -9,9 +9,13 @@
   "tasks": {
     "dev": "deno task --cwd web/server dev",
     "serve": "deno task --cwd web/server serve",
-    "test": "deno test -P --ignore=web/tests",
+    "build": "deno run -A web/server/build.ts && deno bundle --platform browser -o web/dist/worker.js web/server/worker.ts",
+    "test": "D1_LOCAL_PATH=:memory: deno test -P --ignore=web/tests",
     "test:browser": "deno task --cwd web/tests test",
-    "check": "deno task --cwd web/client check && deno task --cwd web/server check && deno check packages && deno lint && deno fmt --check"
+    "check": "deno task --cwd web/client check && deno task --cwd web/server check && deno check packages && deno lint && deno fmt --check",
+    "db": "deno run -A jsr:@remix-kbn/data-table-d1/cli",
+    "wrangler": "deno run -A npm:wrangler",
+    "deploy": "deno task build && deno run -A npm:wrangler deploy"
   },
   "permissions": {
     "default": {
@@ -38,8 +42,7 @@
     ]
   },
   "unstable": [
-    "bundle",
-    "kv"
+    "bundle"
   ],
   "compilerOptions": {
     "jsx": "react-jsx",
@@ -48,26 +51,18 @@
   "imports": {
     "@kuboon/dpop": "jsr:@kuboon/dpop@^0.1.2",
     "@kuboon/kv": "jsr:@kuboon/kv@^0.2.0",
-    "@kuboon/md": "jsr:@kuboon/md@^0.7.0",
-    "@remix-kbn/data-table-sqlite-turso": "jsr:@remix-kbn/data-table-sqlite-turso@^0.6.0",
-    "@kuboon/share-element": "jsr:@kuboon/share-element@^0.5.0",
-    "@libsql/client": "npm:@libsql/client@^0.17.4",
     "@lightpanda/browser": "npm:@lightpanda/browser@^1.2.0",
     "@remix-kbn/assets-deno": "jsr:@remix-kbn/assets-deno@^0.9.0",
-    "@remix-kbn/helper-agent/agent/dummy": "jsr:@remix-kbn/helper-agent@^0.3.0/agent/dummy",
-    "@remix-kbn/helper-agent/client": "jsr:@remix-kbn/helper-agent@^0.3.0/client",
-    "@remix-kbn/helper-agent/controller": "jsr:@remix-kbn/helper-agent@^0.3.0/controller",
-    "@remix-kbn/ssg": "jsr:@remix-kbn/ssg@^0.13.0",
+    "@remix-kbn/data-table-d1": "jsr:@remix-kbn/data-table-d1@^0.1.0",
     "@remix-run/component": "npm:@remix-run/component@^1.0.0",
     "@remix-run/data-table": "npm:@remix-run/data-table@^1.0.0",
     "@remix-run/fetch-router": "npm:@remix-run/fetch-router@^1.0.0",
     "@remix-run/render-middleware": "npm:@remix-run/render-middleware@^1.0.0",
     "@remix-run/session": "npm:@remix-run/session@^1.0.0",
-    "@remix-run/spa": "npm:@remix-run/spa@^1.0.0",
-    "@remix-run/ui": "npm:@remix-run/ui@^0.12.1",
     "@std/assert": "jsr:@std/assert@^1.0.19",
-    "@std/front-matter": "jsr:@std/front-matter@^1.0.9",
-    "canvaskit-wasm": "npm:canvaskit-wasm@^0.40.0",
+    "@std/fs": "jsr:@std/fs@^1.0.0",
+    "@std/http": "jsr:@std/http@^1.0.0",
+    "@std/ulid": "jsr:@std/ulid@^1.0.0",
     "jose": "jsr:@panva/jose@^6.2.3",
     "puppeteer-core": "npm:puppeteer-core@^23.11.1"
   },

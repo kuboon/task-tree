@@ -5,8 +5,7 @@
  * register *this* device for notifications and manage every device registered
  * on the IdP (id.kbn.one). All subscription state is owned by the IdP and
  * reached through a DPoP-bound, cross-origin `fetchDpop` (see lib/push). The
- * service worker that receives the pushes is served from this origin (`/sw.js`,
- * under the deploy prefix).
+ * service worker that receives the pushes is served from this origin (`/sw.js`).
  *
  * It also exposes the server-initiated path: "サーバーから送信" calls this
  * app's own `POST /api/notify`, which authenticates to the IdP with a
@@ -26,6 +25,7 @@ import {
   type SerializableValue,
 } from "@remix-run/component";
 
+import { clientModule } from "../client_entry.ts";
 import { sessionStore } from "../session.ts";
 import {
   actionStyle,
@@ -63,7 +63,7 @@ const formatDate = (value: number): string => {
 };
 
 export const PushCard = clientEntry(
-  import.meta.url,
+  clientModule("islands/push_card.tsx", "PushCard"),
   function PushCard(handle: Handle<PushCardProps>) {
     let phase: "loading" | "signedout" | "ready" | "error" = "loading";
     let errorMessage: string | null = null;
@@ -153,7 +153,6 @@ export const PushCard = clientEntry(
 
     // Server-initiated path: ask *our* server to deliver a push to the
     // signed-in user's devices via the IdP's `POST /rp/notifications`.
-    // [feature:server-send] — also the button below and the `POST /api/notify` it calls.
     const onServerSend = async () => {
       if (sending || !userId) return;
       sending = true;
@@ -374,9 +373,7 @@ export const PushCard = clientEntry(
                 「バッジ数」に数字を入れて送信すると、その値がアプリのバッジ
                 (Badging API) に反映されます。空欄なら通常の通知のみ。
                 「サーバーから送信」は <code>POST /api/notify</code>{" "}
-                を使うため、サーバーが動いている環境 (Deno Deploy)
-                でのみ動作します。静的に配信された GitHub Pages
-                では送信できません。
+                を使い、このアプリのサーバーが id.kbn.one 経由で配信します。
               </p>
             </div>
           )}
