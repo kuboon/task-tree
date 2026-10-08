@@ -21,12 +21,15 @@ deno task test:browser  # ブラウザ smoke テスト
 
 ## デプロイ (Cloudflare Workers + D1)
 
+D1 (`task-tree`) は作成・初期マイグレーション済み（ID は `wrangler.toml`）。
+新しいマイグレーションは `deno task db migrate --remote` で流す（要
+`CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_D1_DATABASE_ID` /
+`CLOUDFLARE_API_TOKEN`）。
+
 初回:
 
 ```bash
 deno task wrangler login
-deno task wrangler d1 create task-tree     # 出力された database_id を wrangler.toml へ
-deno task db migrate --remote              # 要 CLOUDFLARE_ACCOUNT_ID / CLOUDFLARE_D1_DATABASE_ID / CLOUDFLARE_API_TOKEN
 deno task wrangler secret put RP_SIGNING_KEY_JWK   # ES256 秘密鍵 (JWK JSON)
 ```
 

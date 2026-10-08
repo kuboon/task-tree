@@ -9,11 +9,12 @@ compatibility_date = "2026-10-01"
 directory = "web/dist/public"
 binding = "ASSETS"
 
-# `wrangler d1 create task-tree`, then paste the id it prints.
+# Account kuboon, APAC. Migrations: `deno task db migrate --remote` (needs CLOUDFLARE_*
+# env, see README) — the journal table `data_table_migrations` is shared with the local runs.
 [[d1_databases]]
 binding = "DB"
 database_name = "task-tree"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "6688e147-2742-49ca-a26a-93337fe6d4aa"
 
 [vars]
 IDP_ORIGIN = "https://id.kbn.one"
