@@ -1,133 +1,99 @@
 # Task Tree — 設計メモ
 
-チーム用タスク管理ツール。決まっていること、提案、未決の論点をここに集める。
-決まったら「決定事項」へ移し、理由を一行残す。
+チーム用タスク管理ツール。決まったことと、その理由をここに残す。
 
 ## 決定事項
 
-- **認証は id.kbn.one**。ブラウザはテンプレ既存の DPoP bind フロー
-  （`/authorize` → `/session`）でサインインする。
-- **Cloudflare Workers + D1**。テンプレの static（GitHub Pages）と Deno 専用部分
-  （起動時 `Deno.bundle`、Deno KV、Turso、og 画像、デモ機能）は外した。開発と
-  テストは Deno ホスト（`web/server/router.tsx`）、本番は Worker
-  （`web/server/worker.ts`）。構成は `CLAUDE.md`。
-- **DB は D1**（`@remix-kbn/data-table-d1` + `@remix-run/data-table`）。マイグ
-  レーションは `db/migrations/`、CLI は `deno task db`。
-- **チーム → タスク（複数） → 依存関係**。最初に作る機能は「チーム作成」。
-- **MCP サーバーを内蔵**する。
+- **認証は id.kbn.one**。ブラウザはパスキー + DPoP セッション、MCP は id.kbn.one
+  の OAuth 2.1。どちらも同じ `userId`（IdP の `sub`）になる。
+- **Cloudflare Workers + D1**、公開 URL は `https://task-tree.kbn.one`。開発と
+  テストは Deno ホスト（`web/server/router.tsx`、ローカル SQLite）。
+- **チーム → タスク**。タスクは **親子の木**（`parentId`、分解）と
+  **依存のグラフ**
+  （`dependsOn`、先に終わるべきタスク）の両方を持つ。どちらも循環は拒否する。
+  全体としては木ではなくグラフになる。
+- **タスクの属性**: タイトル・説明・状態（未着手 / 進行中 / 完了）・担当者
+  （nullable、チームのメンバーから）。優先度・ラベル・期限は持たない。
+- **着手可能（ready）** = 完了していない、かつ依存先がすべて完了。
+- **メンバー追加は招待リンク**（7 日有効、何人でも使える）。招待リンクは
+  メンバーなら誰でも作れる。
+- **役割はオーナーとメンバーの 2 つ**。チーム作成者がオーナー。オーナーだけが
+  チーム名変更・チーム削除・メンバーを外す、をできる。オーナーは抜けられない
+  （抜けるならチームを削除）。抜けた / 外された人の担当は外れる。
+- **MCP
+  は書き込みも含め、ブラウザでできる操作すべて**。操作の表（`web/server/ops.ts`）
+  を一つ持ち、ブラウザ API と MCP ツールの両方がそれを呼ぶので、片方だけに操作が
+  増えることが構造上起きない。
+- **表示名は id.kbn.one のニックネーム**。サインインのたびに `users`
+  に記録する。 MCP のアクセストークンにはニックネームが無いので、上書きしない。
+- **RP 署名鍵**（`/.well-known/jwks.json`、サーバー起点の push 通知用）は、
+  `RP_SIGNING_KEY_JWK` が無ければ初回に生成して D1 の `kv` に保存し、全 isolate
+  で 共有する。
 
-## 提案（未決。相談中）
+## 認証の流れ
 
-### 1. ユーザー識別とサーバー側の認証
+### ブラウザ
 
-id.kbn.one の `/session` は `{ userId, jws }` を返す。`jws` は IdP が ES256 で
-署名した JWT で、`cnf.jkt` にこのブラウザの DPoP 鍵 thumbprint が入っている
-（[IdP README](https://github.com/kuboon/id.kbn.one)「RP 側での検証」）。
+1. ナビの「Sign In」→
+   `id.kbn.one/authorize?dpop_jkt=…&redirect_uri=<今のページ>`
+   （招待リンクから来ても、サインイン後に同じページへ戻る）。
+2. 戻ったら `GET id.kbn.one/session`（DPoP）→ `{ userId, jws, nickname }`。
+   `jws` は IdP の ES256 署名で `sub` と `cnf.jkt`（このブラウザの鍵）を含む、1
+   時間有効。
+3. このアプリの API は `POST /api/ops/:name` に `DPoP: <proof>` と
+   `Authorization: DPoP <jws>` を付ける。サーバー（`web/server/auth.ts`）は
+   proof の検証（`htu` は公開 URL と照合、`jti` の再利用拒否）、`jws` の署名検証
+   （IdP の JWKS）、`cnf.jkt` と proof
+   の鍵の一致を確かめる。セッションは持たない。
 
-- ブラウザ → 自サーバーの API は、テンプレの DPoP ミドルウェア（proof 検証 →
-  thumbprint）に加えて、**`jws` を IdP の JWKS で検証し `cnf.jkt` が proof の
-  thumbprint と一致することを確認**して `userId` を得る。
-  - 初回だけ `jws` を `Authorization: Bearer` で送り、DPoP セッションに `userId`
-    を保存。以後は proof だけで良い（セッション TTL 内）。
-- IdP が返すのは `userId` のみで表示名は無い。**表示名はこのアプリで各自が設定**
-  する（`users` テーブル）。未設定なら `userId` の先頭数文字を表示。
+### MCP
 
-### 2. MCP の認証: id.kbn.one を OAuth 2.1 認可サーバーとして使う
+1. MCP クライアントが `https://task-tree.kbn.one/mcp` に繋ぐ → 401 +
+   `WWW-Authenticate: Bearer resource_metadata=".../.well-known/oauth-protected-resource/mcp"`。
+2. メタデータ（RFC 9728）の `authorization_servers` は `https://id.kbn.one`。
+   クライアントは id.kbn.one で PKCE + CIMD の認可を行う（パスキーでログイン）。
+3. 返ってくるアクセストークン（`at+jwt`、`aud` = MCP の URL、`scope` に
+   `mcp`）を `Authorization: Bearer` で送る。
 
-id.kbn.one は既に OAuth 2.1 AS を公開している
-（`/.well-known/oauth-authorization-server`: PKCE S256、`scope=mcp`、CIMD 対応、
-refresh token ローテーション）。アクセストークンは ES256 JWT で `aud` が
-リソースサーバー（= このアプリ）、`sub` が `userId`。
-
-このアプリ側（リソースサーバー）に要るもの:
-
-- `GET /.well-known/oauth-protected-resource` —
-  `authorization_servers:
-  ["https://id.kbn.one"]`、`resource: RP_ORIGIN`
-- `POST /mcp`（Streamable HTTP）— `Authorization: Bearer` を IdP の JWKS で検証
-  （`iss`=id.kbn.one、`aud`=`RP_ORIGIN`）。無ければ 401 +
-  `WWW-Authenticate:
-  Bearer resource_metadata="…"`。
-- `userId` = `payload.sub`。ブラウザと同じ `users` / `team_members` を参照する
-  ので、**MCP から見える範囲は Web と同じ（所属チームのみ）**。
-
-Claude Code / Claude.ai / Cursor 等の MCP クライアントはこの標準フロー （RFC
-9728 → RFC 8414 → PKCE）をそのまま辿れるので、**トークンの手動発行や
-独自ログインは不要**。IdP 側の `AUTHORIZE_WHITELIST` に `RP_ORIGIN` のホストが
-要る（`kuboon-tokyo.deno.net` / `kbn.one` は例示されているので恐らく既に入って
-いる）。
-
-MCP 実装は `@modelcontextprotocol/sdk` の `McpServer` +
-`WebStandardStreamableHTTPServerTransport`（fetch ベース）を fetch-router
-のアクションから呼ぶ想定。Deno で動くことは実装時に確認する。
-
-### 3. データストア: D1 + `@remix-run/data-table`（決定済み）
-
-依存関係のグラフ（「このタスクを塞いでいるもの」「着手可能なタスク」）は JOIN
-と再帰 CTE が書けるリレーショナル DB が楽。D1 は SQLite 方言で、
-`@remix-kbn/data-table-d1` が data-table を D1 binding で駆動する。制約:
-`transaction()` は `batch()` に変換されるので、トランザクション内で「書いた
-行を読む」「update() の戻り値を使う」はできない（パッケージ README）。
-
-### 4. データモデル（案）
+## データモデル（`db/migrations/`）
 
 ```
-users         id (= IdP userId) PK, name, created_at
+users         id (= IdP userId) PK, nickname, updated_at
 teams         id PK, name, created_by, created_at
-team_members  team_id, user_id, role (owner|member), joined_at   PK(team_id,user_id)
-team_invites  token PK, team_id, created_by, expires_at, max_uses?, uses
-tasks         id PK, team_id, title, description, status (todo|doing|done),
-              assignee_id?, parent_id?, created_by, created_at, updated_at
+team_members  team_id, user_id, role (owner|member), joined_at   PK(team_id, user_id)
+team_invites  token PK, team_id, created_by, created_at, expires_at
+tasks         id PK, team_id, parent_id?, title, description, status (todo|doing|done),
+              assignee_id?, created_by, created_at, updated_at
 task_deps     task_id, depends_on_id   PK(task_id, depends_on_id)
+kv            DPoP 時代の名残の KV。今は RP 署名鍵だけ
 ```
 
-- `task_deps` は **DAG**。挿入時に循環を拒否する（再帰 CTE で到達判定）。
-- `parent_id` は「分解（サブタスク）」用。依存関係とは別物。
-  要らなければ落とす（論点 Q1）。
-- 「着手可能」= `status != done` かつ `depends_on` が全部 `done`。
+- ID は ULID、時刻は epoch ミリ秒。
+- 循環の検出は再帰 CTE（`web/server/domain/service.ts`）。
+- タスクを消すと、子は消したタスクの親に付け替わる。依存の辺は一緒に消える。
+- チームを消すと、タスク・メンバー・招待も FK の `ON DELETE CASCADE` で消える。
 
-### 5. チームへの参加
+## 操作（ブラウザ API = MCP ツール）
 
-**招待リンク**（`team_invites.token`、期限付き）を提案。IdP には「ユーザー
-検索」が無く `userId` は人間が読める ID ではないので、ID 指定で追加する UI は
-使いにくい。owner がリンクを発行 → 受け取った人がサインインして開くと参加。
+`whoami` / `list_teams` / `create_team` / `get_team` / `rename_team` /
+`delete_team` / `leave_team` / `remove_member` / `create_invite` / `get_invite`
+/ `accept_invite` / `list_tasks` / `get_task` / `create_task` / `update_task` /
+`delete_task` / `add_dependency` / `remove_dependency` /
+`send_test_notification`
 
-### 6. 画面（最小）
+## 画面
 
-- `/` — 説明 + サインイン導線
-- `/my` — 自分の表示名、所属チーム一覧、チーム作成
-- `/teams/:id` — タスク一覧（着手可能 / 進行中 / 完了）、タスク作成、依存の編集
-- `/teams/:id/tasks/:taskId` — 詳細、依存の前後
-- `/teams/:id/invite` — 招待リンク発行 / `/join/:token` — 参加
+- `/` — 所属チームの一覧とチーム作成、MCP の URL
+- `/teams/:teamId` — タスクの木（状態・担当・着手可能 / 待ち N）、絞り込み
+  （すべて / 着手可能 / 自分の担当、完了も表示）、タスク詳細（編集・親・依存・子
+  タスク追加・削除）、メンバーと招待リンク
+- `/join/:token` — 招待の受諾
+- `/my` — サインイン状態と push 通知の設定
 
-### 7. MCP ツール（最小）
+## これから
 
-`list_teams` / `list_tasks(team, filter)` / `create_task` / `update_task` /
-`add_dependency` / `remove_dependency` / `ready_tasks(team)`。
-チーム作成・招待は Web だけにする（破壊的・管理系の操作は人間が UI で行う）。
-
-### 8. 通知（後回し）
-
-テンプレの push 連携（`POST /rp/notifications`）をそのまま使い、
-「自分がアサインされた」「塞いでいたタスクが完了して着手可能になった」を
-通知する。初期スコープ外。
-
-## 未決の論点
-
-- **Q1** 「task-tree」の tree は、親子（サブタスク分解）か、依存関係のグラフか、
-  両方か。提案は両方だが、まず依存関係だけでも成立する。
-- **Q2** メンバー追加は招待リンクで良いか。
-- **Q3** タスクの属性はこれで足りるか（期限・優先度・ラベル・担当者の要否）。
-- **Q4** MCP ツールの範囲（読み取りだけか、書き込みも含むか）。提案は上記 7。
-- **Q5** デプロイ先の URL（`RP_ORIGIN`）。`wrangler.toml` は
-  `https://task-tree.kuboon.workers.dev` を仮置き。IdP の whitelist に入れる
-  必要がある（`workers.dev` は現状含まれていない可能性が高い）。
-
-## 実装順（案）
-
-0. ~~Cloudflare Workers + D1 への移植~~（済）
-1. ユーザー: `jws` 検証ミドルウェア、`users` テーブル、表示名の設定（`/my`）
-2. チーム作成 / 一覧 / 招待リンク
-3. タスク CRUD + 依存関係（DAG 制約）+ 着手可能ビュー
-4. MCP（`/.well-known/oauth-protected-resource`、`/mcp`、ツール）
-5. 通知
+- **通知**: 自分が担当になった、待っていたタスクが着手可能になった、を push で
+  知らせる（`lib/push/client.ts` は配線済み）。
+- **リアルタイム更新**: いまは操作のたびに再読込。複数人で同時に触るなら Durable
+  Objects か polling。
+- **タスクの並び順**: いまは作成順。手で並べ替えたくなったら `position` を足す。

@@ -7,10 +7,10 @@
  * reached through a DPoP-bound, cross-origin `fetchDpop` (see lib/push). The
  * service worker that receives the pushes is served from this origin (`/sw.js`).
  *
- * It also exposes the server-initiated path: "サーバーから送信" calls this
- * app's own `POST /api/notify`, which authenticates to the IdP with a
- * `private_key_jwt` assertion and fans the notification out to the user's
- * devices via `POST /rp/notifications`.
+ * It also exposes the server-initiated path: "サーバーから送信" runs the
+ * `send_test_notification` operation, whose server half authenticates to the
+ * IdP with a `private_key_jwt` assertion and fans the notification out to the
+ * caller's own devices via `POST /rp/notifications`.
  *
  * Setup runs on both server and client; browser-only work (DPoP key gen,
  * service worker, Notification) is gated on `typeof document !== "undefined"`.
@@ -35,7 +35,7 @@ import {
   primaryStyle,
 } from "../theme.ts";
 import { color, radius } from "../tokens.ts";
-import { routes } from "../routes.ts";
+import { callOp } from "../lib/ops.ts";
 import {
   createPushManager,
   type PushManager,
@@ -159,26 +159,10 @@ export const PushCard = clientEntry(
       handle.update();
       try {
         const badgeCount = readBadgeCount();
-        const notification: Record<string, unknown> = {
-          title: "サーバーからの通知",
-          body: badgeCount != null
-            ? `バッジ数 ${badgeCount} を送信しました。`
-            : "RP サーバーが id.kbn.one 経由で送信しました。",
-          url: globalThis.location.href,
-        };
-        if (badgeCount != null) notification.badgeCount = badgeCount;
-        const r = await fetch(routes.api.notify.href(), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userIds: [userId], notification }),
-        });
-        const data = await r.json().catch(() => ({})) as {
-          message?: string;
-          results?: { ok?: boolean }[];
-        };
-        if (!r.ok) {
-          throw new Error(data.message ?? `送信に失敗しました (${r.status})`);
-        }
+        const data = await callOp(
+          "send_test_notification",
+          badgeCount != null ? { badgeCount } : {},
+        );
         const results = Array.isArray(data.results) ? data.results : [];
         const delivered = results.filter((x) => x?.ok).length;
         if (results.length === 0) {
@@ -372,8 +356,8 @@ export const PushCard = clientEntry(
               <p mix={mutedStyle}>
                 「バッジ数」に数字を入れて送信すると、その値がアプリのバッジ
                 (Badging API) に反映されます。空欄なら通常の通知のみ。
-                「サーバーから送信」は <code>POST /api/notify</code>{" "}
-                を使い、このアプリのサーバーが id.kbn.one 経由で配信します。
+                「サーバーから送信」は、このアプリのサーバーが id.kbn.one
+                経由で自分のデバイスへ配信します。
               </p>
             </div>
           )}

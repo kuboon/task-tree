@@ -3,6 +3,8 @@ name = "task-tree"
 main = "web/dist/worker.js"
 compatibility_date = "2026-10-01"
 
+routes = [{ pattern = "task-tree.kbn.one", custom_domain = true }]
+
 # The chunks, `static/`, `sw.js` and the asset manifest. The platform answers requests for these
 # before the Worker runs; the Worker reads the manifest through the binding.
 [assets]
@@ -18,8 +20,8 @@ database_id = "6688e147-2742-49ca-a26a-93337fe6d4aa"
 
 [vars]
 IDP_ORIGIN = "https://id.kbn.one"
-# This Worker's public origin; must be on the IdP's AUTHORIZE_WHITELIST.
-RP_ORIGIN = "https://task-tree.kuboon.workers.dev"
+# This Worker's public origin; must be on the IdP's AUTHORIZE_WHITELIST (*.kbn.one is).
+RP_ORIGIN = "https://task-tree.kbn.one"
 
-# Secrets (`wrangler secret put <NAME>`), not here:
-#   RP_SIGNING_KEY_JWK — a fixed ES256 private JWK; without it every isolate signs with its own key.
+# Optional secret (`wrangler secret put RP_SIGNING_KEY_JWK`): a fixed ES256 private JWK. Without it
+# the Worker generates one on first use and keeps it in D1 (`kv` table), shared by every isolate.

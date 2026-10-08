@@ -4,7 +4,7 @@
  * `wrangler.toml` points `main` at the bundle `deno task build` writes from this file, and at the
  * `web/dist/public/` directory the same build fills: the chunks, `static/`, `sw.js`, and the
  * manifest. The platform answers requests for those files before this Worker runs, so the router
- * here only ever sees pages and the API.
+ * here only ever sees pages, the API and `/mcp`.
  *
  * Everything is built on the first request rather than at module scope, because that is when the
  * bindings arrive — and because Workers forbid I/O in global scope anyway.
@@ -18,13 +18,8 @@ import {
   createManifestAssets,
   MANIFEST_PATH,
 } from "./assets.ts";
+import { createAuthenticator } from "./auth.ts";
 import { configure, type Env } from "./config.ts";
-import { D1KvRepo } from "./lib/kv_d1.ts";
-import {
-  createDpopSessionStorage,
-  DPOP_SESSION_PREFIX,
-  DPOP_SESSION_TTL_MS,
-} from "./middleware/dpop.ts";
 
 /** The Worker's `env`: the variables `config.ts` reads, plus the bindings `wrangler.toml` declares. */
 export interface WorkerEnv extends Env {
@@ -36,7 +31,7 @@ export interface WorkerEnv extends Env {
 let app: ReturnType<typeof createApp> | undefined;
 
 function boot(env: WorkerEnv) {
-  configure(env);
+  const config = configure(env);
   const assets = createManifestAssets(async () => {
     // Any origin will do: the assets binding ignores the host and reads the path.
     const response = await env.ASSETS.fetch(
@@ -51,11 +46,8 @@ function boot(env: WorkerEnv) {
   });
   return createApp({
     assets,
-    sessionStorage: createDpopSessionStorage(
-      new D1KvRepo(env.DB, DPOP_SESSION_PREFIX, {
-        expireIn: DPOP_SESSION_TTL_MS,
-      }),
-    ),
+    db: env.DB,
+    auth: createAuthenticator({ idpOrigin: config.idpOrigin }),
   });
 }
 

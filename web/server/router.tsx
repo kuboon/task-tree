@@ -15,29 +15,25 @@ import { createLocalD1 } from "@remix-kbn/data-table-d1/node";
 
 import { createApp } from "./app.tsx";
 import { createDenoAssets } from "./assets_deno.ts";
+import { createAuthenticator } from "./auth.ts";
+import { getConfig } from "./config.ts";
 import { migrateLocalD1 } from "./db.ts";
-import { D1KvRepo } from "./lib/kv_d1.ts";
-import {
-  createDpopSessionStorage,
-  DPOP_SESSION_PREFIX,
-  DPOP_SESSION_TTL_MS,
-} from "./middleware/dpop.ts";
 
 const clientDir = new URL("../client/", import.meta.url);
 
-const d1 = await createLocalD1(
+/** The local database, exported so tests can seed it. */
+export const db = await createLocalD1(
   Deno.env.get("D1_LOCAL_PATH") ??
     decodeURIComponent(new URL("../../data/app.db", import.meta.url).pathname),
 );
-await migrateLocalD1(d1);
+await migrateLocalD1(db);
 
 const assets = await createDenoAssets();
 
 const router = createApp({
   assets,
-  sessionStorage: createDpopSessionStorage(
-    new D1KvRepo(d1, DPOP_SESSION_PREFIX, { expireIn: DPOP_SESSION_TTL_MS }),
-  ),
+  db,
+  auth: createAuthenticator({ idpOrigin: getConfig().idpOrigin }),
 });
 
 /** The files under `client/static/`, served verbatim at their own names. */

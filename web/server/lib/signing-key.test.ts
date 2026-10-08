@@ -65,3 +65,22 @@ Deno.test("GET /.well-known/jwks.json serves the public key set", async () => {
   assertEquals(body.keys.length, 1);
   assertEquals(body.keys[0].kid, kid);
 });
+
+Deno.test("with a store, the generated key is kept and reused by the next process", async () => {
+  const { createLocalD1 } = await import("@remix-kbn/data-table-d1/node");
+  const { migrateLocalD1 } = await import("../db.ts");
+  const { D1KvRepo } = await import("./kv_d1.ts");
+  const { setSigningKeyStore } = await import("./signing-key.ts");
+
+  const db = await createLocalD1(":memory:");
+  await migrateLocalD1(db);
+  setSigningKeyStore(new D1KvRepo<JsonWebKey>(db, ["rp-signing-key"]));
+  const first = await getSigningKey();
+  // A second isolate: a new repo over the same database finds the stored key.
+  setSigningKeyStore(new D1KvRepo<JsonWebKey>(db, ["rp-signing-key"]));
+  const second = await getSigningKey();
+  assertEquals(second.kid, first.kid);
+  const stored = await new D1KvRepo<JsonWebKey>(db, ["rp-signing-key"])
+    .entry("es256").get();
+  assertEquals(typeof stored?.d, "string");
+});
