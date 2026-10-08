@@ -1,159 +1,104 @@
-# deno-remix-tmpl
+# task-tree
 
-Remix v3 + Deno のテンプレート。DPoP (RFC 9449) セッションマネージャーと
-id.kbn.one 連携の push 通知を含む。
+チーム用タスク管理ツール。Remix v3 + Deno で書き、Cloudflare Workers + D1 で
+動かす（`https://task-tree.kbn.one`）。認証は id.kbn.one。ブラウザと MCP
+の両方から同じ操作ができる。
 
-## このリポジトリは何か（最初に判定する）
-
-このリポジトリは **GitHub
-テンプレート**で、ここから新しいアプリを作る。ファイルは全部コピーされるので、
-同じ `CLAUDE.md` が **テンプレ本体**と**派生アプリ**の両方にある。次で区別する。
-
-1. `git remote get-url origin` が `kuboon/deno-remix-tmpl` →
-   **テンプレ本体**。「テンプレ本体を保守するとき」を読む。
-2. それ以外 → **派生アプリ**。`TEMPLATE.md` が残っていれば、init 前なので **まず
-   `TEMPLATE.md` の ステップ 0 とステージ 1 を済ませる**。`TEMPLATE.md`
-   が無ければ init 済みで、普通のアプリとして扱う
-   （テンプレ本体の事情は持ち込まない）。
-
-判定できない（remote が無い等）ときは、推測せずユーザーに聞く。
-
-## テンプレ本体を保守するとき
-
-（派生アプリでは、init の最後にこの節を削除する。）
-
-- 方針: **機能は全部このテンプレに置く**。別の starter に機能を分散させない（旧
-  SSG starter
-  の機能もここに統合済み）。派生アプリが要らない機能を消せるよう、`TEMPLATE.md`
-  の機能表と `[feature:名前]` タグを **機能を足す/消す/動かすたびに更新する**。
-- 機能を足したら: 配線行（`routes.ts` / `router.tsx` / `layout.tsx` /
-  `assets.ts`）に `[feature:名前]` を付け、 `TEMPLATE.md`
-  の表に行（消すファイル・配線・依存）を足す。
-- 二つのモードが両方動くことを保つ: static（SSG → Pages）と server（Deno
-  Deploy）。 デモは両方の URL を `README.md`
-  とトップページに載せている。`/api/*` を static に出さない
-  （どこからもリンクしない、`entryPoints` に入れない）。
-- 変更前後に `deno task check && deno task test && deno task build` と
-  `deno task test:browser` を通す。 `TEMPLATE.md`
-  の削除リストが本当に通るか、確かめるには scratch の `git worktree` で static
-  用と server 用の リストをそれぞれ実際に消して `check`/`build`(`test`) を回す。
-- `@remix-run/render-middleware` / `@remix-run/spa` は 1.0.0 で固定を外した
-  （`TEMPLATE.md` 参照）。依存を上げたら `/blog` の本文を確認する。
+何を作るか・なぜそうしたかは `docs/DESIGN.md`。ここは「どう書くか」。
 
 ## 構造
 
-- `KvRepo` 抽象は [jsr:@kuboon/kv](https://jsr.io/@kuboon/kv) を利用 (memory /
-  Deno KV / Turso libSQL)。
-- `packages/session-storage-kv/` — `@remix-run/session` の `SessionStorage` を
-  `KvRepo` で実装。
-- `packages/remix-dpop-session-middleware/` — DPoP セッション middleware (Remix
-  v3 fetch-router 用)。`context.get(DpopSession)` でアクセスでき、
-  `@remix-run/session` の `Session` と共存可能。DPoP proof 生成・検証は
-  [jsr:@kuboon/dpop](https://jsr.io/@kuboon/dpop) を利用。
-- `web/` — Remix v3 リファレンス Web アプリ (Deno Deploy へ server
-  として、GitHub Pages
-  へ静的サイトとして同時にデプロイ。派生アプリはどちらか一方を選ぶ —
-  `TEMPLATE.md`)
-  - `web/client/` — ブラウザに渡るもの全て (routes / pages / islands / layout /
-    static)。`deno.ns` 無しで型チェックされる
-  - `web/server/` — router・asset bundler・API・config・og 画像
-  - `/my` — id.kbn.one を IdP として使うサインインフロー +
-    プッシュ通知のサンプル
+`web/server/app.tsx` がアプリ本体で、ホストに依存しない。ホストごとの入口が
+依存物（`AppDeps`: asset の解決、D1 binding、認証）を組み立てて渡す。
 
-## プッシュ通知 (id.kbn.one 連携)
+- `web/server/domain/service.ts` — **業務ルールはすべてここ**（メンバーシップ、
+  オーナー権限、親子と依存の循環禁止、着手可能の判定）。リクエストごとに
+  `new Service(db, userId)`。テストは `service.test.ts`（ローカル D1）。
+- `web/server/ops.ts` — **操作の表**（名前・説明・zod の入力・実行）。ブラウザ
+  （`POST /api/ops/:name`、`controllers/ops.ts`）と MCP（`/mcp`、
+  `controllers/mcp.ts`、1 操作 = 1 ツール）の両方がこれを呼ぶ。**操作を足すとき
+  はここに足す**。片方だけに生やさない。
+- `web/server/auth.ts` — ブラウザ（DPoP proof + IdP の `jws`）と MCP（IdP の
+  OAuth アクセストークン）を検証して `userId` を得る。
+- `web/server/lib/sql.ts` — D1 binding に SQL を直接投げる薄いヘルパ。データ
+  アクセスは data-table のクエリビルダを使わず SQL で書く（再帰 CTE
+  が要るため）。 data-table はマイグレーションにだけ使う。
+- `web/client/` — ブラウザに渡るもの全て (routes / pages / islands / layout /
+  static / sw.js)。`deno.ns` 無しで型チェックされる。`Deno.` を参照しない。
+  - 島は `clientEntry(clientModule("islands/x.tsx", "X"), …)` と**安定した ID
+    で自分を名乗る**（`client_entry.ts`）。`import.meta.url` は使わない — Worker
+    にバンドルすると全モジュールが同じ URL になるため。
+  - ページの GET には資格情報が無い（DPoP proof は fetch
+    ごとに作る）ので、データは 島が `client/lib/ops.ts` の `callOp()`
+    で取る。入出力の型は `server/ops.ts` から来る。
+  - テキスト入力は `defaultValue`、select は `key` に現在値を含めて
+    `<option selected>`（`value=` で縛らない）。
+- `web/server/router.tsx` — **Deno ホスト**（`deno serve` と テスト）。起動時に
+  `@remix-kbn/assets-deno` で client を bundle し、`createLocalD1`
+  (`node:sqlite`) を D1 の代わりにし、`/assets/*` `/static/*` `/sw.js`
+  を自前で配信する。
+- `web/server/worker.ts` — **Cloudflare ホスト**。`deno task build` が書いた
+  `web/dist/worker.js` が `wrangler.toml` の `main`。chunk / static / sw.js は
+  Workers Static Assets（`web/dist/public/`）がプラットフォーム側で応答する。
+  島の解決は `assets/manifest.json`（`assets.ts`）。
+- `db/migrations/` — `YYYYMMDDHHmmss_name/up.sql` + `down.sql`。Deno ホストは
+  起動時に自動適用（`db.ts`）。本番 D1 へは `deno task db migrate --remote`。
+- `web/tests/` — lightpanda のブラウザ smoke（`deno task test:browser`）。
 
-id.kbn.one を Web Push のバックエンドとして使う最小構成。購読情報は IdP
-が保持し、RP (このアプリ) は購読 UI と送信トリガーだけを持つ。
+## 認証 (id.kbn.one)
 
-- ブラウザ側 (`web/client/lib/push/`, `web/client/islands/push_card.tsx`,
-  `web/client/sw.js`):
-  - `${base}/sw.js` をこのオリジンに登録し push を受信 (`router.tsx`
-    の専用ルートが配信。scope を `${base}/` にするため `static/`
-    配下には置かない)。
-  - 購読の取得/登録/改名/削除/テストは DPoP-bound fetch で IdP の
-    `${IDP_ORIGIN}/push/*` を直接叩く (cross-origin)。VAPID 公開鍵も IdP
-    のもの。
-- サーバ側 (`web/server/lib/push/client.ts`, `lib/signing-key.ts`):
-  - `POST /api/notify` がサーバ起点で通知を送る。RP は ES256 鍵で
-    `private_key_jwt` クライアントアサーション ([RFC 7521]/[RFC 7523]) を作り、
-    IdP の `POST /rp/notifications` へ送信する。
-  - `GET /.well-known/jwks.json` で RP の公開鍵を配布し、IdP
-    がアサーションを検証 する (共通鍵不要。IdP は RP の JWKS を取得するだけ)。
-  - RP の `clientId` はこのアプリの origin (`RP_ORIGIN`) で、IdP の
-    `AUTHORIZE_WHITELIST` に含まれている必要がある。
+- ブラウザ: `client/session.ts` が DPoP 鍵を作り、`${IDP_ORIGIN}/authorize` →
+  戻って `${IDP_ORIGIN}/session` で `{ userId, jws, nickname }` を得る。API には
+  `DPoP: <proof>` と `Authorization: DPoP <jws>` を付ける。proof の `htu` は
+  公開 URL（`RP_ORIGIN` + パス）と照合する。
+- MCP: id.kbn.one が OAuth 2.1 認可サーバー、このアプリが保護リソース
+  （`/.well-known/oauth-protected-resource/mcp`）。アクセストークンの `aud` は
+  `${RP_ORIGIN}/mcp`。
+- サーバー → IdP: `lib/push/client.ts` が ES256 鍵で `private_key_jwt`
+  クライアントアサーションを作り `POST /rp/notifications` に送る。公開鍵は
+  `/.well-known/jwks.json`（`lib/signing-key.ts`。鍵は D1 の `kv` に保存）。
 
-[RFC 7521]: https://www.rfc-editor.org/rfc/rfc7521
-[RFC 7523]: https://www.rfc-editor.org/rfc/rfc7523
+## 環境変数 / バインディング
 
-## 環境変数
+`web/server/config.ts` に集約。Workers では `fetch(request, env)` の `env` を
+`configure(env)` で渡し、Deno では `Deno.env` を読む。
 
-env アクセスは `web/server/config.ts` に集約し、ホスト非依存にしてある。
-`loadConfig(env)` が env レコードから型付き `Config` を作り、`getConfig()` が
-ホストに応じて env を自前で取得する (配線不要): Deno は `Deno.env`、Cloudflare
-Workers は `cloudflare:workers` の `env`。後者は動的 `import()` なので、その
-モジュールを持たない Deno はロードで落ちずフォールバックできる (静的 import は
-Deno で catch 不能なエラーになる)。env は top-level await
-で起動時に一度だけ解決・ 保持するので `getConfig()` は sync。
-
-- `IDP_ORIGIN` — 外部 IdP の origin (例: `http://localhost:8000`)。 `/my`
-  ページが `${IDP_ORIGIN}/authorize` へ DPoP thumbprint と redirect_uri
-  を付けて遷移し、戻った後 `${IDP_ORIGIN}/session` で userId を取得する。
-- `RP_ORIGIN` — このアプリの公開 origin。`POST /api/notify` のクライアント
-  アサーションの `clientId`/`iss`/`sub` に使う。IdP の `AUTHORIZE_WHITELIST`
-  に登録が必要。未設定だと送信時にエラーになる。
-- `RP_SIGNING_KEY_JWK` — 任意。ES256 秘密鍵 (JWK JSON)。未設定ならプロセス毎に
-  生成
-  (開発用)。本番では固定鍵を設定し、再起動で鍵がローテートしないようにする。
-- `BASE_URL` — 静的ビルド専用。Pages のサブパス（PR プレビュー等）を `base`
-  にする。server（`deno serve` / Deno Deploy）は常にルート配信なので読まない
-  （`web/server/deno.json` の `dev` 権限で ignore）。
-- `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` — `GET /api/turso` サンプル用の
-  Turso (libSQL) 接続。未設定なら 503 を返すのみ。
-
-## Turso (libSQL) + data-table サンプル
-
-`GET /api/turso` が `@remix-run/data-table` のリレーショナル API で Turso に
-アクセスし、`visits` を記録して累計を返す。Turso の `@libsql/client` は非同期
-なので、公式の同期 SQLite 実装ではなく非同期の
-[`@remix-kbn/data-table-sqlite-turso`](https://jsr.io/@remix-kbn/data-table-sqlite-turso)
-(`createTursoDatabase(client)`) を使う。クライアントは edge 対応の
-`@libsql/client/web`。詳細は `web/server/lib/turso/README.md`。
-
-## デプロイ (Deno Deploy + GitHub Pages)
-
-`web/server/router.tsx` が唯一のエントリ。default export は素の
-`@remix-run/fetch-router` の router で、2 通りに使う。
-
-- **Deno Deploy**: エントリポイント `web/server/router.tsx`
-  (`deno serve`)。ページと server 専用ルート (`/api/*`,
-  `/.well-known/jwks.json`) の両方がライブで応答する。
-- **GitHub Pages**: `.github/workflows/pages.yml` が `deno task build`
-  (`@remix-kbn/ssg`) を走らせ、同じ router を `fetch()` でクロールして
-  `web/dist` に静的 HTML を書き出す。クロールは `entryPoints` (`/`、og
-  画像、`/sw.js`) とそこからの リンクだけを辿る。どこからもリンクしていない
-  `/api/*` は静的化されない。 main は Pages ルート、PR は preview
-  サブパスにデプロイされる (`BASE_URL` から `base` が決まる)。
-
-静的版では API が無いので、`/my` の「サーバーから送信」(`POST /api/notify`) は
-動かない。それ以外 (DPoP + IdP は全てブラウザ → id.kbn.one の直接通信)
-は静的版でも動く。
+- `IDP_ORIGIN` — IdP の origin（既定 `https://id.kbn.one`）。
+- `RP_ORIGIN` — このアプリの公開
+  origin（`https://task-tree.kbn.one`）。クライアント アサーションの
+  `clientId`、MCP の resource、DPoP の `htu` 照合に使う。未設定なら リクエストの
+  origin。
+- `RP_SIGNING_KEY_JWK` — 任意。ES256 秘密鍵 (JWK JSON)。無ければ初回に生成して
+  D1 の `kv` に保存し、全 isolate で共有する。
+- `D1_LOCAL_PATH` — Deno ホスト専用。SQLite ファイル（既定 `data/app.db`、
+  テストは `:memory:`）。
+- バインディング（`wrangler.toml`）: `DB`（D1）、`ASSETS`（静的アセット）。
 
 ## 開発
 
 ```bash
-deno task dev      # web アプリの開発サーバー起動
-deno task build    # GitHub Pages 用の静的サイトを web/dist へ生成
-deno task test     # パッケージ/サーバーのテスト実行
+deno task dev           # Deno ホストで開発サーバー (http://localhost:8000)
+deno task check         # 型チェック + lint + fmt
+deno task test          # ユニットテスト
 deno task test:browser  # ブラウザ smoke テスト (lightpanda)
-deno task check    # 型チェック + lint + fmt
+deno task build         # web/dist/ を生成 (public/ + worker.js)
+deno task wrangler dev  # Worker としてローカル実行 (要 build)
+deno task db migrate    # ローカル SQLite へマイグレーション (--remote で D1)
+deno task deploy        # build && wrangler deploy
 ```
+
+変更前後に `deno task check && deno task test && deno task build` を通す。
+Worker 側の挙動を変えたら `deno task wrangler dev` でも確認する。
 
 ## コーディング規約
 
-- Deno ファースト（Web API 優先、Node.js API は必要最小限）
+- Deno ファースト（Web API 優先、Node.js API は必要最小限）。`app.tsx` 以下は
+  Deno にも Node にも Workers にも依存しない。
 - TypeScript strict mode
 - テストは `Deno.test()` + `@std/assert`
-- ファイル名はスネークケース（例: `dpop_test.ts`）
+- ファイル名はスネークケース（例: `kv_d1.ts`）
 - ページ/island の見た目は `@remix-run/component` の `css()` mixin と
   `web/client/tokens.ts` のトークンで書く (Tailwind / daisyUI は使わない)
-- ブラウザへ渡るコードは `web/client/` に置き、`Deno.` を参照しない
+- 追加した `import` はルート `deno.json` にだけ書く。メンバー側には書かない。
+- 依存の更新で `minimumDependencyAge` に引っかかる `@kuboon` / `@remix-kbn` は
+  `exclude` 済み。

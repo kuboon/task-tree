@@ -6,12 +6,14 @@
  * fetches it to verify those assertions (RFC 7515 / 7517 / 7521 / 7523).
  *
  * The key is loaded from `RP_SIGNING_KEY_JWK` (a private JWK JSON) when set,
- * otherwise generated once per process. Generation-on-first-use keeps local
+ * otherwise from the key store the host configured (D1), otherwise generated
+ * once per process. Generation-on-first-use keeps local
  * development zero-config; the public half is always derived from whichever
  * private key is in use, so the JWKS endpoint and the signatures stay in sync.
  */
 
 import { calculateJwkThumbprint, exportJWK, generateKeyPair } from "jose";
+import type { KvRepo } from "@kuboon/kv";
 
 import { getConfig } from "../config.ts";
 
@@ -61,9 +63,37 @@ const generate = async (): Promise<
   return { privateKey: privateKey as CryptoKey, publicJwk };
 };
 
+let store: KvRepo<JsonWebKey> | undefined;
+
 /**
- * Load (or generate-on-first-use) the RP's signing key. Idempotent; later
- * callers receive the cached value.
+ * Where to keep a generated key so every process (every Workers isolate) signs with the same one.
+ * The hosts point this at the D1 `kv` table; without it a key is generated per process.
+ */
+export function setSigningKeyStore(repo: KvRepo<JsonWebKey>): void {
+  if (store !== repo) signingKeyPromise = undefined;
+  store = repo;
+}
+
+/** The stored private JWK, generating and storing one first if there is none. */
+const loadOrCreate = async (
+  repo: KvRepo<JsonWebKey>,
+): Promise<{ privateKey: CryptoKey; publicJwk: JsonWebKey }> => {
+  const entry = repo.entry("es256");
+  let jwk = await entry.get();
+  if (!jwk) {
+    const { privateKey } = await generateKeyPair(ALG, { extractable: true });
+    const created = await exportJWK(privateKey);
+    // Two isolates may race to create it: whichever write lands first wins, and both use it.
+    await entry.update((current) => current ?? created);
+    jwk = await entry.get() ?? created;
+  }
+  return await importPrivateJwk(JSON.stringify(jwk));
+};
+
+/**
+ * Load the RP's signing key: `RP_SIGNING_KEY_JWK` when set, else the one kept in the store
+ * (created on first use), else one generated for this process. Idempotent; later callers receive
+ * the cached value.
  */
 export const getSigningKey = (): Promise<SigningKey> => {
   if (!signingKeyPromise) {
@@ -71,6 +101,8 @@ export const getSigningKey = (): Promise<SigningKey> => {
       const { rpSigningKeyJwk } = getConfig();
       const { privateKey, publicJwk } = rpSigningKeyJwk
         ? await importPrivateJwk(rpSigningKeyJwk)
+        : store
+        ? await loadOrCreate(store)
         : await generate();
       const kid = await calculateJwkThumbprint(publicJwk);
       const { kty, crv, x, y } = publicJwk;

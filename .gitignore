@@ -1,6 +1,8 @@
 node_modules/
 web/dist/
-
+data/
+.wrangler/
+.dev.vars
 
 # APM dependencies
 apm.lock.yaml

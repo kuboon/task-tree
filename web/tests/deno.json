@@ -1,8 +1,12 @@
 {
   "tasks": {
-    "test": "deno test -A ./"
+    "test": "D1_LOCAL_PATH=:memory: deno test -A ./"
   },
   "compilerOptions": {
-    "lib": ["deno.ns", "deno.unstable", "dom"]
+    "lib": [
+      "deno.ns",
+      "deno.unstable",
+      "dom"
+    ]
   }
 }

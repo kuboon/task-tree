@@ -4,8 +4,8 @@
  * Rendered into the shell (client/layout.tsx), so it hydrates on every page
  * and reflects the live DPoP session state:
  *   - signed out → a "Sign In" button that redirects straight to the IdP's
- *     `/authorize` (redirect_uri points back at `/my`);
- *   - signed in  → a "マイページ" link to `/my`.
+ *     `/authorize` (redirect_uri points back at the current page);
+ *   - signed in  → a link to `/my`, labelled with the IdP nickname.
  *
  * Until the async session probe resolves it renders a disabled placeholder so
  * the navbar layout stays stable.
@@ -18,18 +18,19 @@ import {
   type SerializableValue,
 } from "@remix-run/component";
 
+import { clientModule } from "../client_entry.ts";
 import { IDP_ORIGIN } from "../idp.ts";
 import { sessionStore } from "../session.ts";
 import { actionStyle, primaryStyle } from "../theme.ts";
 
 export interface NavAuthProps {
-  /** App-relative href of the my-page, e.g. `/my` (carries the deploy prefix). */
+  /** Href of the my-page, e.g. `/my`. */
   myHref: string;
   [key: string]: SerializableValue;
 }
 
 export const NavAuth = clientEntry(
-  import.meta.url,
+  clientModule("islands/nav_auth.tsx", "NavAuth"),
   function NavAuth(handle: Handle<NavAuthProps>) {
     if (typeof document !== "undefined") {
       // Re-render whenever the shared session changes (sign-in/out anywhere).
@@ -40,8 +41,8 @@ export const NavAuth = clientEntry(
     }
 
     const onSigninClick = () => {
-      const redirectUri =
-        new URL(handle.props.myHref, globalThis.location.origin).href;
+      // Back to where the user is: an invite link has to survive signing in.
+      const redirectUri = globalThis.location.href.split("#")[0];
       const params = new URLSearchParams({
         dpop_jkt: sessionStore.thumbprint,
         redirect_uri: redirectUri,
@@ -60,7 +61,7 @@ export const NavAuth = clientEntry(
       if (sessionStore.userId !== null) {
         return (
           <a href={handle.props.myHref}>
-            マイページ
+            {sessionStore.nickname ?? "マイページ"}
           </a>
         );
       }

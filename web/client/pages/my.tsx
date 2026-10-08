@@ -5,7 +5,7 @@ import { PushCard } from "../islands/push_card.tsx";
 import { SignInCard } from "../islands/signin_card.tsx";
 import { cardStyle } from "../theme.ts";
 
-export const title = "マイページ — Remix3 on Deno Template";
+export const title = "マイページ — Task Tree";
 export const description =
   "外部 IdP (id.kbn.one) を使ったサインインとプッシュ通知のサンプル。";
 
