@@ -81,7 +81,7 @@ function toolError(error: unknown) {
 function buildServer(db: Db, userId: string, origin: string): McpServer {
   const server = new McpServer({ name: "task-tree", version: "0.1.0" }, {
     instructions:
-      "Task Tree: チームのタスク管理。チーム（list_teams）→ タスク（list_tasks）の順にたどる。タスクは parentId で親子の木、dependsOn で依存のグラフを作る。ready は今すぐ着手できるタスク。",
+      "Task Tree: チームのタスク管理。チーム（list_teams）→ タスク（list_tasks）の順にたどる。タスクは dependsOn で依存のグラフを作る（親子関係は無い）。ready は今すぐ着手できるタスク。",
   });
   const ctx = { service: new Service(db, userId), origin };
   for (const [name, def] of Object.entries(ops)) {

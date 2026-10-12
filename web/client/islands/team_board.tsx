@@ -1,8 +1,8 @@
 /**
- * TeamBoard — one team: its tasks as a tree, their dependencies, who does what, and the members.
+ * TeamBoard — one team: its tasks, their dependencies, who does what, and the members.
  *
- * Tasks are drawn by `parentId` (the breakdown tree). Dependencies (`dependsOn`) are drawn as a
- * badge per task — ready, or waiting on N — and edited in the task's detail panel. Every change
+ * Tasks have no parent/child structure; dependencies (`dependsOn`) are the only one. The list is
+ * grouped by stage: 着手可能 first, then tasks one dependency further out, and so on. Every change
  * goes through an operation (`lib/ops.ts`) and then reloads the team's tasks, so `ready` is always
  * the server's answer.
  */
@@ -198,12 +198,12 @@ export const TeamBoard = clientEntry(
 
     // --- task actions ---------------------------------------------------------
 
-    const createTask = (form: HTMLFormElement, parentId: string | null) => {
+    const createTask = (form: HTMLFormElement) => {
       const data = new FormData(form);
       const title = String(data.get("title") ?? "");
       if (!title.trim()) return;
       void act(async () => {
-        await callOp("create_task", { teamId: teamId(), title, parentId });
+        await callOp("create_task", { teamId: teamId(), title });
         form.reset();
       });
     };
@@ -231,23 +231,40 @@ export const TeamBoard = clientEntry(
 
     const byId = () => new Map(tasks.map((t) => [t.id, t]));
 
-    const childrenOf = () => {
-      const map = new Map<string | null, Task[]>();
-      for (const t of tasks) {
-        const list = map.get(t.parentId) ?? [];
-        list.push(t);
-        map.set(t.parentId, list);
-      }
-      return map;
+    /**
+     * How many dependency steps a task is from being startable: 0 for 着手可能, otherwise one more
+     * than the furthest unfinished task it waits on. Done tasks have no stage.
+     */
+    const stages = (): Map<string, number> => {
+      const map = byId();
+      const out = new Map<string, number>();
+      const stageOf = (task: Task): number => {
+        const known = out.get(task.id);
+        if (known !== undefined) return known;
+        let stage = 0;
+        for (const depId of task.dependsOn) {
+          const dep = map.get(depId);
+          if (dep && dep.status !== "done") {
+            stage = Math.max(stage, stageOf(dep) + 1);
+          }
+        }
+        out.set(task.id, stage);
+        return stage;
+      };
+      for (const t of tasks) if (t.status !== "done") stageOf(t);
+      return out;
     };
 
-    /** The task and everything under it — none of these may become its parent. */
-    const subtree = (taskId: string): Set<string> => {
-      const children = childrenOf();
-      const out = new Set<string>();
+    /** The task and everything that waits on it — none of these may become its dependency. */
+    const dependentsDeep = (taskId: string): Set<string> => {
+      const out = new Set<string>([taskId]);
       const walk = (id: string) => {
-        out.add(id);
-        for (const c of children.get(id) ?? []) walk(c.id);
+        for (const t of tasks) {
+          if (t.dependsOn.includes(id) && !out.has(t.id)) {
+            out.add(t.id);
+            walk(t.id);
+          }
+        }
       };
       walk(taskId);
       return out;
@@ -332,10 +349,10 @@ export const TeamBoard = clientEntry(
 
     const detail = (task: Task): RemixNode => {
       const map = byId();
-      const excluded = subtree(task.id);
+      const excluded = dependentsDeep(task.id);
       const dependents = tasks.filter((t) => t.dependsOn.includes(task.id));
       const depCandidates = tasks.filter((t) =>
-        t.id !== task.id && !task.dependsOn.includes(t.id)
+        !excluded.has(t.id) && !task.dependsOn.includes(t.id)
       );
       return (
         <div key={`detail:${task.id}`} mix={detailStyle}>
@@ -392,35 +409,6 @@ export const TeamBoard = clientEntry(
               </button>
             </div>
           </form>
-
-          <div mix={rowStyle}>
-            <span mix={mutedStyle}>親タスク</span>
-            <select
-              key={`parent:${task.id}:${task.parentId ?? ""}`}
-              disabled={busy}
-              mix={[
-                selectStyle,
-                on("change", (event) => {
-                  const value =
-                    (event.currentTarget as HTMLSelectElement).value;
-                  update(task.id, { parentId: value || null });
-                }),
-              ]}
-            >
-              <option value="" selected={task.parentId === null}>
-                （なし・最上位）
-              </option>
-              {tasks.filter((t) => !excluded.has(t.id)).map((t) => (
-                <option
-                  key={t.id}
-                  value={t.id}
-                  selected={t.id === task.parentId}
-                >
-                  {t.title}
-                </option>
-              ))}
-            </select>
-          </div>
 
           <div>
             <span mix={mutedStyle}>先に終わらせるタスク（依存）</span>
@@ -490,35 +478,11 @@ export const TeamBoard = clientEntry(
               {dependents.map((t) => t.title).join("、")}
             </p>
           )}
-
-          <form
-            mix={[
-              rowStyle,
-              on("submit", (event) => {
-                event.preventDefault();
-                createTask(event.currentTarget as HTMLFormElement, task.id);
-              }),
-            ]}
-          >
-            <input
-              name="title"
-              type="text"
-              required
-              maxlength={200}
-              placeholder="子タスクを追加"
-              aria-label="子タスクのタイトル"
-              mix={[inputStyle, growStyle]}
-            />
-            <button type="submit" disabled={busy} mix={actionStyle}>
-              追加
-            </button>
-          </form>
         </div>
       );
     };
 
-    const taskItem = (task: Task, children: Map<string | null, Task[]>) => {
-      const kids = (children.get(task.id) ?? []).filter(visible);
+    const taskItem = (task: Task) => {
       const open = expanded === task.id;
       return (
         <li key={task.id} mix={itemStyle}>
@@ -541,31 +505,41 @@ export const TeamBoard = clientEntry(
             {assigneeSelect(task)}
           </div>
           {open && detail(task)}
-          {kids.length > 0 && (
-            <ul mix={[listResetStyle, nestedStyle]}>
-              {kids.map((k) => taskItem(k, children))}
-            </ul>
-          )}
         </li>
       );
     };
 
-    const taskTree = () => {
-      const children = childrenOf();
+    const taskList = () => {
       const shown = tasks.filter(visible);
-      const shownIds = new Set(shown.map((t) => t.id));
-      // A shown task whose parent is hidden is drawn at the top, so filtering never loses it.
-      const roots = shown.filter((t) =>
-        t.parentId === null || !shownIds.has(t.parentId)
-      );
-      if (roots.length === 0) {
+      if (shown.length === 0) {
         return <p mix={mutedStyle}>表示するタスクがありません。</p>;
       }
-      return (
-        <ul mix={listResetStyle}>
-          {roots.map((t) => taskItem(t, children))}
-        </ul>
-      );
+      const stage = stages();
+      // Groups in order: stage 0 (着手可能), 1, 2, … and the done tasks last.
+      const groups = new Map<number, Task[]>();
+      for (const t of shown) {
+        const key = stage.get(t.id) ?? Number.POSITIVE_INFINITY;
+        const list = groups.get(key) ?? [];
+        list.push(t);
+        groups.set(key, list);
+      }
+      return [...groups].sort(([a], [b]) => a - b).map(([key, list]) => (
+        <section key={String(key)} mix={stageStyle}>
+          <h3 mix={stageHeadingStyle}>
+            {key === 0
+              ? "着手可能"
+              : Number.isFinite(key)
+              ? `${key} 段先`
+              : "完了"}
+            <span mix={mutedStyle}>{list.length} 件</span>
+          </h3>
+          <ul mix={listResetStyle}>
+            {list.map((t) =>
+              taskItem(t)
+            )}
+          </ul>
+        </section>
+      ));
     };
 
     const membersCard = (t: TeamDetail) => (
@@ -773,7 +747,7 @@ export const TeamBoard = clientEntry(
                 formGapStyle,
                 on("submit", (event) => {
                   event.preventDefault();
-                  createTask(event.currentTarget as HTMLFormElement, null);
+                  createTask(event.currentTarget as HTMLFormElement);
                 }),
               ]}
             >
@@ -794,7 +768,7 @@ export const TeamBoard = clientEntry(
                 追加
               </button>
             </form>
-            {taskTree()}
+            {taskList()}
           </section>
           {membersCard(team)}
         </>
@@ -805,10 +779,14 @@ export const TeamBoard = clientEntry(
 
 const itemStyle = css({ marginBlock: "0.35rem" });
 
-const nestedStyle = css({
-  paddingInlineStart: "1.25rem",
-  borderInlineStart: `2px solid ${color.border}`,
-  marginInlineStart: "0.5rem",
+const stageStyle = css({ marginBlockStart: "1rem" });
+
+const stageHeadingStyle = css({
+  display: "flex",
+  alignItems: "baseline",
+  gap: "0.5rem",
+  margin: "0 0 0.25rem",
+  fontSize: "0.95rem",
 });
 
 const taskRowStyle = css({

@@ -57,8 +57,6 @@ export interface InvitePreview {
 export interface Task {
   id: string;
   teamId: string;
-  /** The task this one breaks down; `null` at the top of the tree. */
-  parentId: string | null;
   title: string;
   description: string;
   status: TaskStatus;
@@ -73,8 +71,6 @@ export interface Task {
 }
 
 export interface TaskDetail extends Task {
-  /** Tasks whose `parentId` is this one. */
-  childIds: string[];
   /** Tasks that depend on this one. */
   dependentIds: string[];
 }

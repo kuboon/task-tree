@@ -133,7 +133,7 @@ export const ops = {
 
   list_tasks: op({
     description:
-      "チームのタスク一覧。各タスクに parentId（親子）、dependsOn（先に終わるべきタスク）、ready（未完了で依存が全部完了）が付く。",
+      "チームのタスク一覧。各タスクに dependsOn（先に終わるべきタスク）、ready（未完了で依存が全部完了）が付く。",
     input: z.object({
       teamId,
       status: status.optional(),
@@ -148,21 +148,19 @@ export const ops = {
   }),
   get_task: op({
     description:
-      "タスクの詳細。子タスク（childIds）と、このタスクに依存するタスク（dependentIds）も返す。",
+      "タスクの詳細。このタスクに依存するタスク（dependentIds）も返す。",
     input: z.object({ teamId, taskId }),
     readOnly: true,
     run: ({ service }, i) => service.getTask(i.teamId, i.taskId),
   }),
   create_task: op({
-    description:
-      "タスクを作る。parentId で親タスクの下に、dependsOn で先行タスクを指定できる。",
+    description: "タスクを作る。dependsOn で先に終わるべきタスクを指定できる。",
     input: z.object({
       teamId,
       title,
       description: z.string().max(10_000).optional(),
       status: status.optional(),
       assigneeId: id.nullable().optional().describe("担当者の userId"),
-      parentId: id.nullable().optional(),
       dependsOn: z.array(id).max(100).optional(),
     }),
     run: ({ service }, { teamId, ...input }) =>
@@ -170,7 +168,7 @@ export const ops = {
   }),
   update_task: op({
     description:
-      "タスクを更新する。指定した項目だけ変わる。assigneeId / parentId は null で外せる。",
+      "タスクを更新する。指定した項目だけ変わる。assigneeId は null で外せる。",
     input: z.object({
       teamId,
       taskId,
@@ -178,13 +176,12 @@ export const ops = {
       description: z.string().max(10_000).optional(),
       status: status.optional(),
       assigneeId: id.nullable().optional(),
-      parentId: id.nullable().optional(),
     }),
     run: ({ service }, { teamId, taskId, ...input }) =>
       service.updateTask(teamId, taskId, input),
   }),
   delete_task: op({
-    description: "タスクを削除する。子タスクは削除したタスクの親に付け替わる。",
+    description: "タスクを削除する。このタスクへの依存も一緒に消える。",
     input: z.object({ teamId, taskId }),
     destructive: true,
     run: ({ service }, i) => service.deleteTask(i.teamId, i.taskId),
