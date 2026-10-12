@@ -82,6 +82,9 @@ export const TeamBoard = clientEntry(
         callOp("list_tasks", { teamId: teamId() }),
       ]);
       team = t;
+      // The server cannot know the team's name when it renders the page (the request carries no
+      // credentials), so the tab title is set here, once the team is loaded — and after a rename.
+      document.title = `${t.name} - Task Tree`;
       tasks = list;
     };
 
