@@ -83,7 +83,7 @@ kv            DPoP 時代の名残の KV。今は RP 署名鍵だけ
 `set_team_nickname` / `delete_team` / `leave_team` / `remove_member` /
 `create_invite` / `get_invite` / `accept_invite` / `list_tasks` / `get_task` /
 `create_task` / `update_task` / `delete_task` / `add_dependency` /
-`remove_dependency` / `send_test_notification`
+`remove_dependency`
 
 ## 画面
 
@@ -93,7 +93,7 @@ kv            DPoP 時代の名残の KV。今は RP 署名鍵だけ
   タスク追加・削除）、メンバー・このチームでの自分の名前・招待リンク。タブの
   タイトルは「チーム名 - Task Tree」
 - `/join/:token` — 招待の受諾（このチームでの名前を決めてから参加）
-- `/my` — サインイン状態と push 通知の設定
+- `/my` — push 通知の設定（デバイスの登録・テスト・解除）とサインアウト
 
 ## これから
 
