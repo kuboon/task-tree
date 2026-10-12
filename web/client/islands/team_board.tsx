@@ -1,8 +1,9 @@
 /**
  * TeamBoard — one team: its tasks, their dependencies, who does what, and the members.
  *
- * Tasks have no parent/child structure; dependencies (`dependsOn`) are the only one. The list is
- * grouped by stage: 着手可能 first, then tasks one dependency further out, and so on. Every change
+ * Tasks have no parent/child structure; dependencies (`dependsOn`) are the only one. For now the
+ * list is flat — 着手可能 first, then waiting, then done — until the dependency tree view lands.
+ * Every change
  * goes through an operation (`lib/ops.ts`) and then reloads the team's tasks, so `ready` is always
  * the server's answer.
  */
@@ -230,30 +231,6 @@ export const TeamBoard = clientEntry(
     // --- derived ----------------------------------------------------------------
 
     const byId = () => new Map(tasks.map((t) => [t.id, t]));
-
-    /**
-     * How many dependency steps a task is from being startable: 0 for 着手可能, otherwise one more
-     * than the furthest unfinished task it waits on. Done tasks have no stage.
-     */
-    const stages = (): Map<string, number> => {
-      const map = byId();
-      const out = new Map<string, number>();
-      const stageOf = (task: Task): number => {
-        const known = out.get(task.id);
-        if (known !== undefined) return known;
-        let stage = 0;
-        for (const depId of task.dependsOn) {
-          const dep = map.get(depId);
-          if (dep && dep.status !== "done") {
-            stage = Math.max(stage, stageOf(dep) + 1);
-          }
-        }
-        out.set(task.id, stage);
-        return stage;
-      };
-      for (const t of tasks) if (t.status !== "done") stageOf(t);
-      return out;
-    };
 
     /** The task and everything that waits on it — none of these may become its dependency. */
     const dependentsDeep = (taskId: string): Set<string> => {
@@ -514,32 +491,16 @@ export const TeamBoard = clientEntry(
       if (shown.length === 0) {
         return <p mix={mutedStyle}>表示するタスクがありません。</p>;
       }
-      const stage = stages();
-      // Groups in order: stage 0 (着手可能), 1, 2, … and the done tasks last.
-      const groups = new Map<number, Task[]>();
-      for (const t of shown) {
-        const key = stage.get(t.id) ?? Number.POSITIVE_INFINITY;
-        const list = groups.get(key) ?? [];
-        list.push(t);
-        groups.set(key, list);
-      }
-      return [...groups].sort(([a], [b]) => a - b).map(([key, list]) => (
-        <section key={String(key)} mix={stageStyle}>
-          <h3 mix={stageHeadingStyle}>
-            {key === 0
-              ? "着手可能"
-              : Number.isFinite(key)
-              ? `${key} 段先`
-              : "完了"}
-            <span mix={mutedStyle}>{list.length} 件</span>
-          </h3>
-          <ul mix={listResetStyle}>
-            {list.map((t) =>
-              taskItem(t)
-            )}
-          </ul>
-        </section>
-      ));
+      // 着手可能 first, then waiting, then done; creation order within each.
+      const rank = (t: Task) => t.ready ? 0 : t.status === "done" ? 2 : 1;
+      const sorted = shown.map((t, i) => ({ t, i })).sort((a, b) =>
+        rank(a.t) - rank(b.t) || a.i - b.i
+      );
+      return (
+        <ul mix={listResetStyle}>
+          {sorted.map(({ t }) => taskItem(t))}
+        </ul>
+      );
     };
 
     const membersCard = (t: TeamDetail) => (
@@ -778,16 +739,6 @@ export const TeamBoard = clientEntry(
 );
 
 const itemStyle = css({ marginBlock: "0.35rem" });
-
-const stageStyle = css({ marginBlockStart: "1rem" });
-
-const stageHeadingStyle = css({
-  display: "flex",
-  alignItems: "baseline",
-  gap: "0.5rem",
-  margin: "0 0 0.25rem",
-  fontSize: "0.95rem",
-});
 
 const taskRowStyle = css({
   '&[data-status="done"] button': {
