@@ -6,6 +6,7 @@
 
 import {
   clientEntry,
+  css,
   type Handle,
   on,
   type SerializableValue,
@@ -14,7 +15,7 @@ import {
 import { clientModule } from "../client_entry.ts";
 import type { InvitePreview } from "../../server/domain/types.ts";
 import { callOp, errorMessage } from "../lib/ops.ts";
-import { mutedStyle } from "../lib/ui.ts";
+import { inputStyle, mutedStyle } from "../lib/ui.ts";
 import { routes } from "../routes.ts";
 import { sessionStore } from "../session.ts";
 import { actionStyle, alertStyle, cardStyle, primaryStyle } from "../theme.ts";
@@ -32,8 +33,13 @@ export const JoinTeam = clientEntry(
     let error = "";
     let busy = false;
 
+    /** Who the data on screen was loaded for — other session changes need no reload. */
+    let loadedFor: string | null | undefined;
+
     const load = async () => {
       await sessionStore.load();
+      if (loadedFor === sessionStore.userId) return;
+      loadedFor = sessionStore.userId;
       if (sessionStore.userId === null) {
         phase = "signedout";
         handle.update();
@@ -56,12 +62,15 @@ export const JoinTeam = clientEntry(
       void load();
     }
 
-    const onJoin = async () => {
+    const onJoin = async (form: HTMLFormElement) => {
+      if (busy) return;
       busy = true;
+      error = "";
       handle.update();
       try {
         const { teamId } = await callOp("accept_invite", {
           token: handle.props.token,
+          nickname: String(new FormData(form).get("nickname") ?? ""),
         });
         globalThis.location.href = routes.team.href({ teamId });
       } catch (e) {
@@ -95,19 +104,46 @@ export const JoinTeam = clientEntry(
               </p>
             )
             : (
-              <>
+              <form
+                mix={[
+                  formStyle,
+                  on("submit", (event) => {
+                    event.preventDefault();
+                    void onJoin(event.currentTarget as HTMLFormElement);
+                  }),
+                ]}
+              >
                 <p>「{invite.teamName}」に参加しますか？</p>
-                <button
-                  type="button"
-                  disabled={busy}
-                  mix={[actionStyle, primaryStyle, on("click", onJoin)]}
-                >
-                  参加する
-                </button>
-              </>
+                <label mix={formStyle}>
+                  <span mix={mutedStyle}>このチームでの名前</span>
+                  <input
+                    name="nickname"
+                    type="text"
+                    maxlength={40}
+                    placeholder={sessionStore.nickname ?? "名前"}
+                    mix={inputStyle}
+                  />
+                </label>
+                <p mix={mutedStyle}>
+                  空欄なら id.kbn.one のニックネーム
+                  {sessionStore.nickname ? `「${sessionStore.nickname}」` : ""}
+                  で参加します。あとからチームのメンバー欄で変えられます。
+                </p>
+                <div>
+                  <button
+                    type="submit"
+                    disabled={busy}
+                    mix={[actionStyle, primaryStyle]}
+                  >
+                    参加する
+                  </button>
+                </div>
+              </form>
             )
         )}
       </section>
     );
   },
 );
+
+const formStyle = css({ display: "grid", gap: "0.5rem" });

@@ -119,6 +119,11 @@ Deno.test("ops: DPoP + IdP トークンで操作でき、結果は利用者ご�
     userId: "alice",
     nickname: "alice",
   });
+  const renamed = await alice("set_team_nickname", {
+    teamId,
+    nickname: "アリス",
+  });
+  assertEquals(renamed.body.result.members[0].nickname, "アリス");
   assertEquals((await bob("list_teams", {})).body.result, []);
   assertEquals((await bob("get_team", { teamId })).status, 404);
 
