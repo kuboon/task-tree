@@ -11,6 +11,7 @@ export type TeamRole = "owner" | "member";
 
 export interface Me {
   userId: string;
+  /** The id.kbn.one nickname — the default name in every team. */
   nickname: string | null;
 }
 
@@ -24,7 +25,10 @@ export interface TeamSummary {
 
 export interface Member {
   userId: string;
+  /** The name shown in this team: {@link Member.teamNickname}, else the IdP nickname. */
   nickname: string | null;
+  /** The name the user set for this team only, or `null` to use their default. */
+  teamNickname: string | null;
   role: TeamRole;
   joinedAt: number;
 }

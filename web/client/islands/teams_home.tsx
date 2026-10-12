@@ -37,8 +37,13 @@ export const TeamsHome = clientEntry(
     let error = "";
     let busy = false;
 
+    /** Who the data on screen was loaded for — other session changes need no reload. */
+    let loadedFor: string | null | undefined;
+
     const load = async () => {
       await sessionStore.load();
+      if (loadedFor === sessionStore.userId) return;
+      loadedFor = sessionStore.userId;
       if (sessionStore.userId === null) {
         phase = "signedout";
         handle.update();

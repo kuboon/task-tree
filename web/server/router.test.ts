@@ -27,12 +27,12 @@ Deno.test("GET /teams/:teamId and /join/:token hand the id to their island", asy
   assertStringIncludes(join, '"token":"abc"');
 });
 
-Deno.test("GET /my embeds idp-origin meta and both cards", async () => {
+Deno.test("GET /my embeds idp-origin meta, the push card and sign-out", async () => {
   const res = await router.fetch(new Request("http://x/my"));
   assertEquals(res.status, 200);
   const html = await res.text();
   assertStringIncludes(html, '<meta name="idp-origin"');
-  assertStringIncludes(html, "/assets/islands/signin_card");
+  assertStringIncludes(html, "/assets/islands/sign_out");
   assertStringIncludes(html, "/assets/islands/push_card");
 });
 

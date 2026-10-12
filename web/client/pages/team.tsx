@@ -2,7 +2,8 @@ import type { Handle } from "@remix-run/component";
 
 import { TeamBoard } from "../islands/team_board.tsx";
 
-export const title = "チーム — Task Tree";
+/** Until the team loads; `TeamBoard` then sets `<チーム名> - Task Tree`. */
+export const title = "Task Tree";
 export const description = "チームのタスクと依存関係。";
 
 export default function TeamPage(handle: Handle<{ teamId: string }>) {

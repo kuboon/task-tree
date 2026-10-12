@@ -26,6 +26,9 @@ import type {
   TeamSummary,
 } from "./types.ts";
 
+/** Max length of a name in a team — the same as id.kbn.one's nickname. */
+export const DISPLAY_NAME_MAX_LENGTH = 40;
+
 /** How long an invite link stays valid. */
 export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -121,6 +124,22 @@ export class Service {
   }
 
   // --- teams ----------------------------------------------------------------
+
+  /**
+   * Set the name the caller goes by in one team. An empty name clears it, and the default — their
+   * id.kbn.one nickname — shows again.
+   */
+  async setTeamNickname(teamId: string, name: string): Promise<TeamDetail> {
+    await this.#role(teamId);
+    await run(
+      this.db,
+      "UPDATE team_members SET nickname = ? WHERE team_id = ? AND user_id = ?",
+      checkDisplayName(name) || null,
+      teamId,
+      this.userId,
+    );
+    return this.getTeam(teamId);
+  }
 
   async listTeams(): Promise<TeamSummary[]> {
     const rows = await all<{
@@ -275,15 +294,24 @@ export class Service {
     };
   }
 
-  async acceptInvite(token: string): Promise<{ teamId: string }> {
+  /**
+   * Join the team an invite is for, optionally under a name for that team (empty: the IdP
+   * nickname). Accepting again as a member changes nothing — the name included.
+   */
+  async acceptInvite(
+    token: string,
+    nickname = "",
+  ): Promise<{ teamId: string }> {
     const invite = await this.#liveInvite(token);
     await run(
       this.db,
-      `INSERT INTO team_members (team_id, user_id, role, joined_at) VALUES (?, ?, 'member', ?)
+      `INSERT INTO team_members (team_id, user_id, role, joined_at, nickname)
+       VALUES (?, ?, 'member', ?, ?)
        ON CONFLICT (team_id, user_id) DO NOTHING`,
       invite.team_id,
       this.userId,
       Date.now(),
+      checkDisplayName(nickname) || null,
     );
     return { teamId: invite.team_id };
   }
@@ -531,11 +559,14 @@ export class Service {
     const rows = await all<{
       user_id: string;
       nickname: string | null;
+      team_nickname: string | null;
       role: TeamRole;
       joined_at: number;
     }>(
       this.db,
-      `SELECT m.user_id, u.nickname, m.role, m.joined_at
+      `SELECT m.user_id, m.nickname AS team_nickname,
+         COALESCE(m.nickname, u.nickname) AS nickname,
+         m.role, m.joined_at
        FROM team_members m LEFT JOIN users u ON u.id = m.user_id
        WHERE m.team_id = ?
        ORDER BY m.role = 'owner' DESC, m.joined_at`,
@@ -544,6 +575,7 @@ export class Service {
     return rows.map((r) => ({
       userId: r.user_id,
       nickname: r.nickname,
+      teamNickname: r.team_nickname,
       role: r.role,
       joinedAt: Number(r.joined_at),
     }));
@@ -656,6 +688,18 @@ export class Service {
     );
     return hit !== null;
   }
+}
+
+/** A display name, trimmed; empty means "clear it". */
+function checkDisplayName(name: string): string {
+  const trimmed = name.trim();
+  if (trimmed.length > DISPLAY_NAME_MAX_LENGTH) {
+    throw new AppError(
+      "invalid",
+      `名前は ${DISPLAY_NAME_MAX_LENGTH} 文字以内にしてください。`,
+    );
+  }
+  return trimmed;
 }
 
 function notFoundTeam(): AppError {

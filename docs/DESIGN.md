@@ -24,8 +24,11 @@
   は書き込みも含め、ブラウザでできる操作すべて**。操作の表（`web/server/ops.ts`）
   を一つ持ち、ブラウザ API と MCP ツールの両方がそれを呼ぶので、片方だけに操作が
   増えることが構造上起きない。
-- **表示名は id.kbn.one のニックネーム**。サインインのたびに `users`
-  に記録する。 MCP のアクセストークンにはニックネームが無いので、上書きしない。
+- **名前はチームごと**。デフォルトは id.kbn.one
+  のニックネーム（サインインのたびに `users` に記録。MCP
+  のアクセストークンにはニックネームが無いので上書きしない）。
+  チームごとの別名（`team_members.nickname`）があればそれを使う。別名はチーム画面の
+  メンバー欄で変えられ、招待から参加するときにも決められる。マイページでは編集しない。
 - **RP 署名鍵**（`/.well-known/jwks.json`、サーバー起点の push 通知用）は、
   `RP_SIGNING_KEY_JWK` が無ければ初回に生成して D1 の `kv` に保存し、全 isolate
   で 共有する。
@@ -60,7 +63,8 @@
 ```
 users         id (= IdP userId) PK, nickname, updated_at
 teams         id PK, name, created_by, created_at
-team_members  team_id, user_id, role (owner|member), joined_at   PK(team_id, user_id)
+team_members  team_id, user_id, role (owner|member), joined_at,
+              nickname?（このチームでの名前。NULL なら IdP のニックネーム）   PK(team_id, user_id)
 team_invites  token PK, team_id, created_by, created_at, expires_at
 tasks         id PK, team_id, parent_id?, title, description, status (todo|doing|done),
               assignee_id?, created_by, created_at, updated_at
@@ -76,19 +80,20 @@ kv            DPoP 時代の名残の KV。今は RP 署名鍵だけ
 ## 操作（ブラウザ API = MCP ツール）
 
 `whoami` / `list_teams` / `create_team` / `get_team` / `rename_team` /
-`delete_team` / `leave_team` / `remove_member` / `create_invite` / `get_invite`
-/ `accept_invite` / `list_tasks` / `get_task` / `create_task` / `update_task` /
-`delete_task` / `add_dependency` / `remove_dependency` /
-`send_test_notification`
+`set_team_nickname` / `delete_team` / `leave_team` / `remove_member` /
+`create_invite` / `get_invite` / `accept_invite` / `list_tasks` / `get_task` /
+`create_task` / `update_task` / `delete_task` / `add_dependency` /
+`remove_dependency`
 
 ## 画面
 
 - `/` — 所属チームの一覧とチーム作成、MCP の URL
 - `/teams/:teamId` — タスクの木（状態・担当・着手可能 / 待ち N）、絞り込み
   （すべて / 着手可能 / 自分の担当、完了も表示）、タスク詳細（編集・親・依存・子
-  タスク追加・削除）、メンバーと招待リンク
-- `/join/:token` — 招待の受諾
-- `/my` — サインイン状態と push 通知の設定
+  タスク追加・削除）、メンバー・このチームでの自分の名前・招待リンク。タブの
+  タイトルは「チーム名 - Task Tree」
+- `/join/:token` — 招待の受諾（このチームでの名前を決めてから参加）
+- `/my` — push 通知の設定（デバイスの登録・テスト・解除）とサインアウト
 
 ## これから
 

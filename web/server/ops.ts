@@ -15,7 +15,6 @@ import * as z from "zod";
 
 import type { Service } from "./domain/service.ts";
 import { TASK_STATUSES } from "./domain/types.ts";
-import { sendRpNotification } from "./lib/push/client.ts";
 
 export interface OpContext {
   service: Service;
@@ -71,6 +70,12 @@ export const ops = {
     readOnly: true,
     run: ({ service }, i) => service.getTeam(i.teamId),
   }),
+  set_team_nickname: op({
+    description:
+      "このチームでの自分の名前を設定する（40 文字まで）。空文字で消すと id.kbn.one のニックネームに戻る。",
+    input: z.object({ teamId, nickname: z.string().max(40) }),
+    run: ({ service }, i) => service.setTeamNickname(i.teamId, i.nickname),
+  }),
   rename_team: op({
     description: "チーム名を変える（オーナーのみ）。",
     input: z.object({ teamId, name: z.string().min(1).max(100) }),
@@ -115,9 +120,13 @@ export const ops = {
     run: ({ service }, i) => service.getInvite(i.token),
   }),
   accept_invite: op({
-    description: "招待トークンでチームに参加する。",
-    input: z.object({ token: z.string().min(1).max(64) }),
-    run: ({ service }, i) => service.acceptInvite(i.token),
+    description:
+      "招待トークンでチームに参加する。nickname でこのチームでの名前を決められる（省略・空なら id.kbn.one のニックネーム）。",
+    input: z.object({
+      token: z.string().min(1).max(64),
+      nickname: z.string().max(40).optional(),
+    }),
+    run: ({ service }, i) => service.acceptInvite(i.token, i.nickname),
   }),
 
   // --- tasks ----------------------------------------------------------------
@@ -193,32 +202,6 @@ export const ops = {
     destructive: true,
     run: ({ service }, i) =>
       service.removeDependency(i.teamId, i.taskId, i.dependsOnId),
-  }),
-
-  // --- notifications --------------------------------------------------------
-
-  send_test_notification: op({
-    description:
-      "自分の登録済みデバイスにテスト通知を送る（id.kbn.one 経由）。",
-    input: z.object({
-      badgeCount: z.number().int().min(0).optional().describe(
-        "アプリアイコンのバッジ数",
-      ),
-    }),
-    run: async ({ service, origin }, { badgeCount }) => {
-      const results = await sendRpNotification({
-        userIds: [service.userId],
-        notification: {
-          title: "Task Tree からのテスト通知",
-          body: badgeCount !== undefined
-            ? `バッジ数 ${badgeCount} を送信しました。`
-            : "サーバーから id.kbn.one 経由で送信しました。",
-          url: `${origin}/my`,
-          ...(badgeCount !== undefined ? { badgeCount } : {}),
-        },
-      });
-      return { results };
-    },
   }),
 };
 

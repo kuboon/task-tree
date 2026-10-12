@@ -6,11 +6,7 @@
  * on the IdP (id.kbn.one). All subscription state is owned by the IdP and
  * reached through a DPoP-bound, cross-origin `fetchDpop` (see lib/push). The
  * service worker that receives the pushes is served from this origin (`/sw.js`).
- *
- * It also exposes the server-initiated path: "サーバーから送信" runs the
- * `send_test_notification` operation, whose server half authenticates to the
- * IdP with a `private_key_jwt` assertion and fans the notification out to the
- * caller's own devices via `POST /rp/notifications`.
+
  *
  * Setup runs on both server and client; browser-only work (DPoP key gen,
  * service worker, Notification) is gated on `typeof document !== "undefined"`.
@@ -21,7 +17,6 @@ import {
   css,
   type Handle,
   on,
-  ref,
   type SerializableValue,
 } from "@remix-run/component";
 
@@ -35,7 +30,6 @@ import {
   primaryStyle,
 } from "../theme.ts";
 import { color, radius } from "../tokens.ts";
-import { callOp } from "../lib/ops.ts";
 import {
   createPushManager,
   type PushManager,
@@ -67,14 +61,11 @@ export const PushCard = clientEntry(
   function PushCard(handle: Handle<PushCardProps>) {
     let phase: "loading" | "signedout" | "ready" | "error" = "loading";
     let errorMessage: string | null = null;
-    let userId: string | null = null;
-    let sending = false;
 
     let status: { message: string; kind: AlertKind } | null = null;
     let statusTimeout: ReturnType<typeof setTimeout> | null = null;
 
     let pushManager: PushManager | null = null;
-    let badgeInput: HTMLInputElement | undefined;
 
     const setStatus = (
       message: string,
@@ -115,7 +106,6 @@ export const PushCard = clientEntry(
           handle.update();
           return;
         }
-        userId = sessionStore.userId;
         await pushManager.load(true);
         phase = "ready";
       } catch (e) {
@@ -141,52 +131,6 @@ export const PushCard = clientEntry(
       const next = globalThis.prompt("通知デバイスの新しい名前", current);
       if (next === null) return;
       await pushManager.rename(id, next);
-    };
-
-    // Read the optional demo badge count from the number input.
-    const readBadgeCount = (): number | undefined => {
-      const raw = badgeInput?.value.trim();
-      if (!raw) return undefined;
-      const n = Number(raw);
-      return Number.isInteger(n) && n >= 0 ? n : undefined;
-    };
-
-    // Server-initiated path: ask *our* server to deliver a push to the
-    // signed-in user's devices via the IdP's `POST /rp/notifications`.
-    const onServerSend = async () => {
-      if (sending || !userId) return;
-      sending = true;
-      handle.update();
-      try {
-        const badgeCount = readBadgeCount();
-        const data = await callOp(
-          "send_test_notification",
-          badgeCount != null ? { badgeCount } : {},
-        );
-        const results = Array.isArray(data.results) ? data.results : [];
-        const delivered = results.filter((x) => x?.ok).length;
-        if (results.length === 0) {
-          setStatus(
-            "送信先のデバイスがありません。先にこのデバイスを登録してください。",
-            "warning",
-          );
-        } else {
-          setStatus(
-            `サーバーから ${delivered}/${results.length} 件の通知を送信しました。`,
-            "success",
-          );
-        }
-      } catch (e) {
-        setStatus(
-          e instanceof Error && e.message
-            ? `サーバー送信に失敗しました: ${e.message}`
-            : "サーバー送信に失敗しました。",
-          "error",
-        );
-      } finally {
-        sending = false;
-        handle.update();
-      }
     };
 
     return () => {
@@ -326,39 +270,7 @@ export const PushCard = clientEntry(
                     ? "このデバイスを更新"
                     : "このデバイスへの通知を登録"}
                 </button>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  inputmode="numeric"
-                  placeholder="バッジ数"
-                  aria-label="バッジ数"
-                  mix={[
-                    inputStyle,
-                    ref((node) => {
-                      badgeInput = node as HTMLInputElement;
-                    }),
-                  ]}
-                />
-                <button
-                  type="button"
-                  disabled={sending || push.subscriptions.length === 0}
-                  mix={[
-                    actionStyle,
-                    on("click", () => {
-                      void onServerSend();
-                    }),
-                  ]}
-                >
-                  サーバーから送信
-                </button>
               </div>
-              <p mix={mutedStyle}>
-                「バッジ数」に数字を入れて送信すると、その値がアプリのバッジ
-                (Badging API) に反映されます。空欄なら通常の通知のみ。
-                「サーバーから送信」は、このアプリのサーバーが id.kbn.one
-                経由で自分のデバイスへ配信します。
-              </p>
             </div>
           )}
         </section>
@@ -407,14 +319,4 @@ const rowStyle = css({
   alignItems: "center",
   gap: "0.5rem",
   marginBlock: "0.5rem",
-});
-
-const inputStyle = css({
-  font: "inherit",
-  width: "6rem",
-  padding: "0.35rem 0.5rem",
-  border: `1px solid ${color.border}`,
-  borderRadius: radius.md,
-  background: color.bg,
-  color: color.fg,
 });

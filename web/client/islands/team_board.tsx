@@ -82,11 +82,19 @@ export const TeamBoard = clientEntry(
         callOp("list_tasks", { teamId: teamId() }),
       ]);
       team = t;
+      // The server cannot know the team's name when it renders the page (the request carries no
+      // credentials), so the tab title is set here, once the team is loaded — and after a rename.
+      document.title = `${t.name} - Task Tree`;
       tasks = list;
     };
 
+    /** Who the data on screen was loaded for — other session changes need no reload. */
+    let loadedFor: string | null | undefined;
+
     const load = async () => {
       await sessionStore.load();
+      if (loadedFor === sessionStore.userId) return;
+      loadedFor = sessionStore.userId;
       if (sessionStore.userId === null) {
         phase = "signedout";
         handle.update();
@@ -178,6 +186,11 @@ export const TeamBoard = clientEntry(
       }
     };
 
+    const onTeamNickname = (nickname: string) =>
+      void act(() =>
+        callOp("set_team_nickname", { teamId: teamId(), nickname })
+      );
+
     const onRemoveMember = (userId: string, label: string) => {
       if (!globalThis.confirm(`${label} をチームから外しますか？`)) return;
       void act(() => callOp("remove_member", { teamId: teamId(), userId }));
@@ -246,9 +259,6 @@ export const TeamBoard = clientEntry(
       if (filter === "mine") return t.assigneeId === sessionStore.userId;
       return true;
     };
-
-    const memberLabel = (userId: string | null) =>
-      userLabel(team?.members.find((m) => m.userId === userId), userId);
 
     // --- rendering ------------------------------------------------------------
 
@@ -585,6 +595,51 @@ export const TeamBoard = clientEntry(
             </li>
           ))}
         </ul>
+        {(() => {
+          const mine = t.members.find((m) => m.userId === sessionStore.userId);
+          if (!mine) return null;
+          return (
+            <form
+              mix={[
+                rowStyle,
+                formGapStyle,
+                on("submit", (event) => {
+                  event.preventDefault();
+                  const data = new FormData(
+                    event.currentTarget as HTMLFormElement,
+                  );
+                  onTeamNickname(String(data.get("nickname") ?? ""));
+                }),
+              ]}
+            >
+              <span mix={mutedStyle}>このチームでの名前</span>
+              <input
+                key={mine.teamNickname ?? ""}
+                name="nickname"
+                type="text"
+                maxlength={40}
+                defaultValue={mine.teamNickname ?? ""}
+                placeholder={mine.teamNickname === null
+                  ? `${mine.nickname ?? ""}（id.kbn.one のニックネーム）`
+                  : ""}
+                aria-label="このチームでの名前"
+                mix={[inputStyle, growStyle]}
+              />
+              <button type="submit" disabled={busy} mix={actionStyle}>
+                保存
+              </button>
+              {mine.teamNickname !== null && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  mix={[actionStyle, on("click", () => onTeamNickname(""))]}
+                >
+                  ニックネームに戻す
+                </button>
+              )}
+            </form>
+          );
+        })()}
         <div mix={rowStyle}>
           <button
             type="button"
@@ -742,10 +797,6 @@ export const TeamBoard = clientEntry(
             {taskTree()}
           </section>
           {membersCard(team)}
-          <p mix={mutedStyle}>
-            担当者の名前は id.kbn.one のニックネームです。{" "}
-            {memberLabel(sessionStore.userId)} としてサインイン中。
-          </p>
         </>
       );
     };

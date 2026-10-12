@@ -165,3 +165,47 @@ Deno.test("チーム削除でタスクも消え、別チームのタスクには
   await alice.deleteTeam(a.id);
   assertEquals(await alice.listTeams(), []);
 });
+
+Deno.test("チームごとの名前: 設定したチームだけで使われ、空にすると IdP のニックネームに戻る", async () => {
+  const { alice, bob, carol } = await setup();
+  const a = await alice.createTeam("A");
+  const b = await alice.createTeam("B");
+  for (const team of [a, b]) {
+    await bob.acceptInvite((await alice.createInvite(team.id)).token);
+  }
+  const detail = await bob.setTeamNickname(a.id, "ボブ@A");
+  const inA = detail.members.find((m) => m.userId === "bob");
+  assertEquals([inA?.nickname, inA?.teamNickname], ["ボブ@A", "ボブ@A"]);
+  const inB = (await alice.getTeam(b.id)).members.find((m) =>
+    m.userId === "bob"
+  );
+  assertEquals([inB?.nickname, inB?.teamNickname], ["Bob", null]);
+
+  const cleared = (await bob.setTeamNickname(a.id, " ")).members
+    .find((m) => m.userId === "bob");
+  assertEquals([cleared?.nickname, cleared?.teamNickname], ["Bob", null]);
+  // Not a member of A: no name to set there.
+  await rejectsWith("not_found", () => carol.setTeamNickname(a.id, "x"));
+});
+
+Deno.test("招待: 参加時にチームでの名前を決められる。再受諾では変わらない", async () => {
+  const { alice, bob, carol } = await setup();
+  const team = await alice.createTeam("T");
+  const { token } = await alice.createInvite(team.id);
+
+  await bob.acceptInvite(token, " ボブ ");
+  await carol.acceptInvite(token);
+  await bob.acceptInvite(token, "別の名前");
+
+  const names = (await alice.getTeam(team.id)).members.map((m) => [
+    m.userId,
+    m.nickname,
+    m.teamNickname,
+  ]);
+  assertEquals(names, [
+    ["alice", "Alice", null],
+    ["bob", "ボブ", "ボブ"],
+    ["carol", null, null],
+  ]);
+  await rejectsWith("invalid", () => carol.acceptInvite(token, "x".repeat(41)));
+});
