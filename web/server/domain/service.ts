@@ -45,7 +45,6 @@ export interface CreateTaskInput {
   description?: string;
   status?: TaskStatus;
   assigneeId?: string | null;
-  parentId?: string | null;
   dependsOn?: string[];
 }
 
@@ -54,13 +53,11 @@ export interface UpdateTaskInput {
   description?: string;
   status?: TaskStatus;
   assigneeId?: string | null;
-  parentId?: string | null;
 }
 
 interface TaskRow {
   id: string;
   team_id: string;
-  parent_id: string | null;
   title: string;
   description: string;
   status: TaskStatus;
@@ -336,7 +333,6 @@ export class Service {
     if (!task) throw notFoundTask();
     return {
       ...task,
-      childIds: tasks.filter((t) => t.parentId === taskId).map((t) => t.id),
       dependentIds: tasks.filter((t) => t.dependsOn.includes(taskId)).map((
         t,
       ) => t.id),
@@ -349,8 +345,6 @@ export class Service {
   ): Promise<TaskDetail> {
     await this.#role(teamId);
     const title = cleanName(input.title, "タイトル");
-    const parentId = input.parentId ?? null;
-    if (parentId !== null) await this.#requireTask(teamId, parentId);
     const assigneeId = input.assigneeId ?? null;
     if (assigneeId !== null) await this.#requireMember(teamId, assigneeId);
     const dependsOn = [...new Set(input.dependsOn ?? [])];
@@ -362,12 +356,11 @@ export class Service {
     await batch(this.db, [
       stmt(
         this.db,
-        `INSERT INTO tasks (id, team_id, parent_id, title, description, status, assignee_id,
-           created_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO tasks (id, team_id, title, description, status, assignee_id, created_by,
+           created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         id,
         teamId,
-        parentId,
         title,
         input.description ?? "",
         input.status ?? "todo",
@@ -417,19 +410,6 @@ export class Service {
       sets.push("assignee_id = ?");
       params.push(input.assigneeId);
     }
-    if (input.parentId !== undefined) {
-      if (input.parentId !== null) {
-        await this.#requireTask(teamId, input.parentId);
-        if (await this.#isAncestorOrSelf(taskId, input.parentId)) {
-          throw new AppError(
-            "conflict",
-            "そのタスクを親にすると、親子関係が循環します。",
-          );
-        }
-      }
-      sets.push("parent_id = ?");
-      params.push(input.parentId);
-    }
     if (sets.length > 0) {
       sets.push("updated_at = ?");
       params.push(Date.now());
@@ -443,23 +423,11 @@ export class Service {
     return this.getTask(teamId, taskId);
   }
 
-  /**
-   * Delete a task. Its children move up to its parent rather than disappearing with it; its
-   * dependency edges go with it.
-   */
+  /** Delete a task. Its dependency edges, both ways, go with it. */
   async deleteTask(teamId: string, taskId: string): Promise<{ deleted: true }> {
     await this.#role(teamId);
-    const task = await this.#requireTask(teamId, taskId);
-    await batch(this.db, [
-      stmt(
-        this.db,
-        "UPDATE tasks SET parent_id = ?, updated_at = ? WHERE parent_id = ?",
-        task.parent_id,
-        Date.now(),
-        taskId,
-      ),
-      stmt(this.db, "DELETE FROM tasks WHERE id = ?", taskId),
-    ]);
+    await this.#requireTask(teamId, taskId);
+    await run(this.db, "DELETE FROM tasks WHERE id = ?", taskId);
     return { deleted: true };
   }
 
@@ -641,7 +609,6 @@ export class Service {
       return {
         id: r.id,
         teamId: r.team_id,
-        parentId: r.parent_id,
         title: r.title,
         description: r.description,
         status: r.status,
@@ -654,23 +621,6 @@ export class Service {
           deps.every((d) => status.get(d) === "done"),
       };
     });
-  }
-
-  /** Whether `candidate` is `taskId` itself or a descendant of it — making it the parent would loop. */
-  async #isAncestorOrSelf(taskId: string, candidate: string): Promise<boolean> {
-    // Walk up from the candidate parent; reaching `taskId` means it is a descendant of `taskId`.
-    const hit = await first(
-      this.db,
-      `WITH RECURSIVE up(id) AS (
-         SELECT ?
-         UNION
-         SELECT t.parent_id FROM tasks t JOIN up ON t.id = up.id WHERE t.parent_id IS NOT NULL
-       )
-       SELECT 1 FROM up WHERE id = ? LIMIT 1`,
-      candidate,
-      taskId,
-    );
-    return hit !== null;
   }
 
   /** Whether `from` already depends on `to`, directly or through other tasks. */

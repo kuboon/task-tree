@@ -82,13 +82,14 @@ export function createApp(deps: AppDeps): AppRouter {
   /** Renders a page into the shell. Every page hydrates: the nav's sign-in is an island. */
   const page = async (
     context: AppContext,
-    meta: { title: string; description?: string },
+    meta: { title: string; description?: string; wide?: boolean },
     body: RemixNode,
   ): Promise<Response> =>
     context.render(
       <Layout
         title={meta.title}
         description={meta.description}
+        wide={meta.wide}
         script={await clientRuntime()}
       >
         {body}

@@ -122,31 +122,17 @@ Deno.test("依存: 着手可能の判定と、循環の拒否", async () => {
   assertEquals((await alice.getTask(team.id, ship.id)).dependsOn, []);
 });
 
-Deno.test("親子: 循環の拒否と、削除時の子の付け替え", async () => {
+Deno.test("タスク削除で、そのタスクへの依存も消える", async () => {
   const { alice } = await setup();
   const team = await alice.createTeam("T");
-  const root = await alice.createTask(team.id, { title: "root" });
-  const mid = await alice.createTask(team.id, {
-    title: "mid",
-    parentId: root.id,
-  });
-  const leaf = await alice.createTask(team.id, {
-    title: "leaf",
-    parentId: mid.id,
-  });
+  const a = await alice.createTask(team.id, { title: "a" });
+  const b = await alice.createTask(team.id, { title: "b", dependsOn: [a.id] });
+  assertEquals((await alice.getTask(team.id, a.id)).dependentIds, [b.id]);
 
-  await rejectsWith(
-    "conflict",
-    () => alice.updateTask(team.id, root.id, { parentId: leaf.id }),
-  );
-  await rejectsWith(
-    "conflict",
-    () => alice.updateTask(team.id, root.id, { parentId: root.id }),
-  );
-  assertEquals((await alice.getTask(team.id, root.id)).childIds, [mid.id]);
-
-  await alice.deleteTask(team.id, mid.id);
-  assertEquals((await alice.getTask(team.id, leaf.id)).parentId, root.id);
+  await alice.deleteTask(team.id, a.id);
+  const after = await alice.getTask(team.id, b.id);
+  assertEquals(after.dependsOn, []);
+  assertEquals(after.ready, true);
 });
 
 Deno.test("チーム削除でタスクも消え、別チームのタスクには触れない", async () => {
@@ -158,7 +144,7 @@ Deno.test("チーム削除でタスクも消え、別チームのタスクには
   await rejectsWith("not_found", () => alice.getTask(a.id, taskB.id));
   await rejectsWith(
     "not_found",
-    () => alice.createTask(a.id, { title: "x", parentId: taskB.id }),
+    () => alice.createTask(a.id, { title: "x", dependsOn: [taskB.id] }),
   );
 
   await alice.createTask(a.id, { title: "a" });

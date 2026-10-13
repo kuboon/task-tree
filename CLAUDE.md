@@ -12,7 +12,7 @@
 依存物（`AppDeps`: asset の解決、D1 binding、認証）を組み立てて渡す。
 
 - `web/server/domain/service.ts` — **業務ルールはすべてここ**（メンバーシップ、
-  オーナー権限、親子と依存の循環禁止、着手可能の判定）。リクエストごとに
+  オーナー権限、依存の循環禁止、着手可能の判定）。リクエストごとに
   `new Service(db, userId)`。テストは `service.test.ts`（ローカル D1）。
 - `web/server/ops.ts` — **操作の表**（名前・説明・zod の入力・実行）。ブラウザ
   （`POST /api/ops/:name`、`controllers/ops.ts`）と MCP（`/mcp`、

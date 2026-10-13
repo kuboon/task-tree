@@ -8,10 +8,12 @@
   の OAuth 2.1。どちらも同じ `userId`（IdP の `sub`）になる。
 - **Cloudflare Workers + D1**、公開 URL は `https://task-tree.kbn.one`。開発と
   テストは Deno ホスト（`web/server/router.tsx`、ローカル SQLite）。
-- **チーム → タスク**。タスクは **親子の木**（`parentId`、分解）と
-  **依存のグラフ**
-  （`dependsOn`、先に終わるべきタスク）の両方を持つ。どちらも循環は拒否する。
-  全体としては木ではなくグラフになる。
+- **チーム → タスク**。タスクの構造は **依存のグラフ**（`dependsOn`、先に終わる
+  べきタスク）だけ。循環は拒否する。親子関係（分解の木）は持たない。
+- **チームページの並び**:
+  着手可能なタスクを左端に置き、その下・右へ「終わると着手
+  できるようになるタスク」を展開するツリー表示（開閉可能）。複数の依存先を持つ
+  タスクは一番遠い依存先の下に置き、ほかの依存先の下には「再掲」として出す。
 - **タスクの属性**: タイトル・説明・状態（未着手 / 進行中 / 完了）・担当者
   （nullable、チームのメンバーから）。優先度・ラベル・期限は持たない。
 - **着手可能（ready）** = 完了していない、かつ依存先がすべて完了。
@@ -66,7 +68,7 @@ teams         id PK, name, created_by, created_at
 team_members  team_id, user_id, role (owner|member), joined_at,
               nickname?（このチームでの名前。NULL なら IdP のニックネーム）   PK(team_id, user_id)
 team_invites  token PK, team_id, created_by, created_at, expires_at
-tasks         id PK, team_id, parent_id?, title, description, status (todo|doing|done),
+tasks         id PK, team_id, title, description, status (todo|doing|done),
               assignee_id?, created_by, created_at, updated_at
 task_deps     task_id, depends_on_id   PK(task_id, depends_on_id)
 kv            DPoP 時代の名残の KV。今は RP 署名鍵だけ
@@ -88,10 +90,15 @@ kv            DPoP 時代の名残の KV。今は RP 署名鍵だけ
 ## 画面
 
 - `/` — 所属チームの一覧とチーム作成、MCP の URL
-- `/teams/:teamId` — タスクの木（状態・担当・着手可能 / 待ち N）、絞り込み
-  （すべて / 着手可能 / 自分の担当、完了も表示）、タスク詳細（編集・親・依存・子
-  タスク追加・削除）、メンバー・このチームでの自分の名前・招待リンク。タブの
-  タイトルは「チーム名 - Task Tree」
+- `/teams/:teamId` —
+  依存ツリー（左端が着手可能、下・右へ「終わると着手できるように
+  なるタスク」。開閉可能、複数の依存先を持つタスクは一番遠い依存先の下に置き、他は
+  「再掲」）。行ごとに状態（押すと次へ）・担当・着手可能 / ほか N 件待ち。選んだ
+  タスクの前後のつながりを強調し、右の詳細で編集・状態・担当・依存の追加/削除・
+  削除。「自分の担当を強調」「すべて畳む / 開く」「完了 N
+  件を表示」。メンバー・この
+  チームでの自分の名前・招待リンク。タブのタイトルは「チーム名 - Task Tree」。
+  このページだけ本文を広く使う（ページの `wide`）
 - `/join/:token` — 招待の受諾（このチームでの名前を決めてから参加）
 - `/my` — push 通知の設定（デバイスの登録・テスト・解除）とサインアウト
 

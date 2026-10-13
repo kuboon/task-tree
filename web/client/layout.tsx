@@ -45,6 +45,8 @@ export interface LayoutProps {
    * exactly the bug that ships a page that renders fine and on which nothing works.
    */
   script: ClientRuntime | null;
+  /** Widen the bands past the reading measure — for a page that is a working surface. */
+  wide?: boolean;
   children: RemixNode;
 }
 
@@ -69,6 +71,8 @@ export interface PageModule<Props = Record<string, never>> {
   description?: string;
   /** Whether the page places a client entry, so the shell boots the runtime for it. */
   hydrate: boolean;
+  /** See {@link LayoutProps.wide}. */
+  wide?: boolean;
 }
 
 export function Layout(handle: Handle<LayoutProps>) {
@@ -96,7 +100,7 @@ export function Layout(handle: Handle<LayoutProps>) {
           ))}
         </head>
         <body>
-          <Shell>{props.children}</Shell>
+          <Shell wide={props.wide}>{props.children}</Shell>
           {props.script
             ? <script type="module" src={props.script.src}></script>
             : null}
@@ -107,25 +111,32 @@ export function Layout(handle: Handle<LayoutProps>) {
 }
 
 /** Everything inside `<body>`: the header, the page, and the footer. */
-export function Shell(handle: Handle<{ children: RemixNode }>) {
-  return () => (
-    <>
-      <header mix={[bandStyle, headerStyle]}>
-        <a mix={brandStyle} href={routes.home.href()}>Task Tree</a>
-        <nav mix={navStyle}>
-          <a href={routes.home.href()}>Home</a>
-          <NavAuth myHref={routes.my.href()} />
-        </nav>
-      </header>
-      <main mix={[bandStyle, mainStyle]}>{handle.props.children}</main>
-      <footer mix={[bandStyle, footerStyle]}>
-        <p>
-          Built with <a href="https://remix.run">Remix v3</a> on{" "}
-          <a href="https://workers.cloudflare.com">Cloudflare Workers</a>.
-        </p>
-      </footer>
-    </>
-  );
+export function Shell(
+  handle: Handle<{ children: RemixNode; wide?: boolean }>,
+) {
+  return () => {
+    const wide = handle.props.wide ? "true" : undefined;
+    return (
+      <>
+        <header data-wide={wide} mix={[bandStyle, headerStyle]}>
+          <a mix={brandStyle} href={routes.home.href()}>Task Tree</a>
+          <nav mix={navStyle}>
+            <a href={routes.home.href()}>Home</a>
+            <NavAuth myHref={routes.my.href()} />
+          </nav>
+        </header>
+        <main data-wide={wide} mix={[bandStyle, mainStyle]}>
+          {handle.props.children}
+        </main>
+        <footer data-wide={wide} mix={[bandStyle, footerStyle]}>
+          <p>
+            Built with <a href="https://remix.run">Remix v3</a> on{" "}
+            <a href="https://workers.cloudflare.com">Cloudflare Workers</a>.
+          </p>
+        </footer>
+      </>
+    );
+  };
 }
 
 // --- styles -----------------------------------------------------------------
@@ -141,6 +152,7 @@ const bandStyle = css({
   maxWidth: contentWidth,
   marginInline: "auto",
   paddingInline: "1.25rem",
+  '&[data-wide="true"]': { maxWidth: "76rem" },
 });
 
 const headerStyle = css({
