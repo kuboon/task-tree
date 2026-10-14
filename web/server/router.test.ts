@@ -11,8 +11,9 @@ Deno.test("GET / returns the shell with the islands and the runtime script", asy
   assertStringIncludes(html, '<script type="module" src="/assets/hydration');
   // Islands resolve to their chunks by their stable ids.
   assertStringIncludes(html, "/assets/islands/nav_auth");
-  assertStringIncludes(html, "/assets/islands/teams_home");
   assertStringIncludes(html, "http://x/mcp");
+  // The home page only introduces the app; the team list is on /my.
+  assertEquals(html.includes("/assets/islands/teams_home"), false);
 });
 
 Deno.test("GET /teams/:teamId and /join/:token hand the id to their island", async () => {
@@ -27,11 +28,12 @@ Deno.test("GET /teams/:teamId and /join/:token hand the id to their island", asy
   assertStringIncludes(join, '"token":"abc"');
 });
 
-Deno.test("GET /my embeds idp-origin meta, the push card and sign-out", async () => {
+Deno.test("GET /my embeds idp-origin meta, the teams, the push card and sign-out", async () => {
   const res = await router.fetch(new Request("http://x/my"));
   assertEquals(res.status, 200);
   const html = await res.text();
   assertStringIncludes(html, '<meta name="idp-origin"');
+  assertStringIncludes(html, "/assets/islands/teams_home");
   assertStringIncludes(html, "/assets/islands/sign_out");
   assertStringIncludes(html, "/assets/islands/push_card");
 });

@@ -1,5 +1,5 @@
 /**
- * TeamsHome — the signed-in home: the teams you are in, and a form to start one.
+ * TeamsHome — on the my page: the teams you are in, and a form to start one.
  */
 
 import {
