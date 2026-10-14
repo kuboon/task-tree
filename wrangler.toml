@@ -25,3 +25,15 @@ RP_ORIGIN = "https://task-tree.kbn.one"
 
 # Optional secret (`wrangler secret put RP_SIGNING_KEY_JWK`): a fixed ES256 private JWK. Without it
 # the Worker generates one on first use and keeps it in D1 (`kv` table), shared by every isolate.
+
+# Preview deployments (Workers Builds on non-production branches / PRs). Own D1 so previews never
+# touch production data; apply migrations with `deno task db migrate --remote` against it if needed.
+# IdP/RP origins match production, so sign-in on a preview URL is not expected to work.
+[previews.vars]
+IDP_ORIGIN = "https://id.kbn.one"
+RP_ORIGIN = "https://task-tree.kbn.one"
+
+[[previews.d1_databases]]
+binding = "DB"
+database_name = "task-tree-preview"
+database_id = "32db5f2a-fd5c-4d16-ad8f-b416174e515e"
