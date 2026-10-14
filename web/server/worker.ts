@@ -1,7 +1,7 @@
 /**
  * The Cloudflare Workers host.
  *
- * `wrangler.toml` points `main` at the bundle `deno task build` writes from this file, and at the
+ * `cloudflare.config.ts` points the entrypoint at the bundle `deno task build` writes from this file, and at the
  * `web/dist/public/` directory the same build fills: the chunks, `static/`, `sw.js`, and the
  * manifest. The platform answers requests for those files before this Worker runs, so the router
  * here only ever sees pages, the API and `/mcp`.
@@ -21,7 +21,7 @@ import {
 import { createAuthenticator } from "./auth.ts";
 import { configure, type Env } from "./config.ts";
 
-/** The Worker's `env`: the variables `config.ts` reads, plus the bindings `wrangler.toml` declares. */
+/** The Worker's `env`: the variables `config.ts` reads, plus the bindings `cloudflare.config.ts` declares. */
 export interface WorkerEnv extends Env {
   readonly DB: D1DatabaseBinding;
   /** The static assets binding, for reading the manifest. */

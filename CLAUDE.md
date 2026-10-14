@@ -38,9 +38,10 @@
   (`node:sqlite`) を D1 の代わりにし、`/assets/*` `/static/*` `/sw.js`
   を自前で配信する。
 - `web/server/worker.ts` — **Cloudflare ホスト**。`deno task build` が書いた
-  `web/dist/worker.js` が `wrangler.toml` の `main`。chunk / static / sw.js は
-  Workers Static Assets（`web/dist/public/`）がプラットフォーム側で応答する。
-  島の解決は `assets/manifest.json`（`assets.ts`）。
+  `web/dist/worker.js` が `cloudflare.config.ts` の `entrypoint`。chunk / static
+  / sw.js は Workers Static
+  Assets（`web/dist/public/`）がプラットフォーム側で応答する。 島の解決は
+  `assets/manifest.json`（`assets.ts`）。
 - `db/migrations/` — `YYYYMMDDHHmmss_name/up.sql` + `down.sql`。Deno ホストは
   起動時に自動適用（`db.ts`）。本番 D1 へは `deno task db migrate --remote`。
 - `web/tests/` — lightpanda のブラウザ smoke（`deno task test:browser`）。
@@ -72,7 +73,8 @@
   D1 の `kv` に保存し、全 isolate で共有する。
 - `D1_LOCAL_PATH` — Deno ホスト専用。SQLite ファイル（既定 `data/app.db`、
   テストは `:memory:`）。
-- バインディング（`wrangler.toml`）: `DB`（D1）、`ASSETS`（静的アセット）。
+- バインディング（`cloudflare.config.ts`）:
+  `DB`（D1）、`ASSETS`（静的アセット）。
 
 ## 開発
 
@@ -82,13 +84,13 @@ deno task check         # 型チェック + lint + fmt
 deno task test          # ユニットテスト
 deno task test:browser  # ブラウザ smoke テスト (lightpanda)
 deno task build         # web/dist/ を生成 (public/ + worker.js)
-deno task wrangler dev  # Worker としてローカル実行 (要 build)
+deno task cf dev        # Worker としてローカル実行 (要 build)
 deno task db migrate    # ローカル SQLite へマイグレーション (--remote で D1)
-deno task deploy        # build && wrangler deploy
+deno task deploy        # build && cf deploy
 ```
 
 変更前後に `deno task check && deno task test && deno task build` を通す。
-Worker 側の挙動を変えたら `deno task wrangler dev` でも確認する。
+Worker 側の挙動を変えたら `deno task cf dev` でも確認する。
 
 ## コーディング規約
 

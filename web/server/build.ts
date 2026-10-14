@@ -4,7 +4,7 @@
  *   deno run -A web/server/build.ts
  *
  * Writes `web/dist/public/` — the compiled chunks under `assets/` with their manifest, `static/`
- * copied as is, and `sw.js` at the root — which `wrangler.toml` serves as static assets. The
+ * copied as is, and `sw.js` at the root — which `cloudflare.config.ts` / `wrangler.config.ts` serve as static assets. The
  * Worker script itself is bundled by `deno bundle` in the `build` task, after this.
  *
  * The chunks come from the same compiler the dev server uses (`assets_deno.ts`), fetched out of it
