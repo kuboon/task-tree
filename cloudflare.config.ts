@@ -33,10 +33,7 @@ export default defineConfig((ctx) => {
         env: {
           IDP_ORIGIN: bindings.text("https://id.kbn.one"),
           RP_ORIGIN: bindings.text(""),
-          DB: bindings.d1({
-            name: "task-tree-preview",
-            id: "32db5f2a-fd5c-4d16-ad8f-b416174e515e",
-          }),
+          DB: bindings.d1({ id: "32db5f2a-fd5c-4d16-ad8f-b416174e515e" }), // task-tree-preview
           ASSETS: bindings.assets(),
         },
       },
@@ -54,10 +51,9 @@ export default defineConfig((ctx) => {
         // This Worker's public origin; must be on the IdP's AUTHORIZE_WHITELIST (*.kbn.one is).
         RP_ORIGIN: bindings.text("https://task-tree.kbn.one"),
         // Account kuboon, APAC. Migrations: `deno task db migrate --remote` (see README).
-        DB: bindings.d1({
-          name: "task-tree",
-          id: "6688e147-2742-49ca-a26a-93337fe6d4aa",
-        }),
+        // No `name`: the dashboard keeps only the id, and a `name` here shows up as drift that
+        // `cf deploy --strict` (Workers Builds) refuses to overwrite.
+        DB: bindings.d1({ id: "6688e147-2742-49ca-a26a-93337fe6d4aa" }), // task-tree
         ASSETS: bindings.assets(),
       },
     },
