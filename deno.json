@@ -11,7 +11,7 @@
     "test": "D1_LOCAL_PATH=:memory: deno test -P --ignore=web/tests",
     "test:browser": "deno task --cwd web/tests test",
     "check": "deno task --cwd web/client check && deno task --cwd web/server check && deno lint && deno fmt --check",
-    "db": "deno run -A jsr:@remix-kbn/data-table-d1/cli",
+    "db": "deno run -A scripts/db.ts",
     "cf": "deno run -A npm:cf",
     "wrangler": "deno run -A npm:wrangler",
     "deploy": "deno task build && deno run -A npm:cf deploy"

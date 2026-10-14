@@ -39,16 +39,19 @@ deno task cf auth login   # 初回のみ
 deno task deploy     # build && cf deploy
 ```
 
-新しいマイグレーションは `deno task db migrate --remote` で流す。ID は名前から
-`cf` で引ける:
+新しいマイグレーションは `deno task db migrate --remote` で流す。D1 の
+`database_id` は `cloudflare.config.ts` から読む（`--database-id` /
+`$CLOUDFLARE_D1_DATABASE_ID` を渡せばそちらが優先）。`--preview`
+を付けるとプレビュー用の D1 (`task-tree-preview`) が対象になる。
 
 ```bash
-deno task cf d1 list   # task-tree の uuid が database_id
 export CLOUDFLARE_ACCOUNT_ID=...
-export CLOUDFLARE_D1_DATABASE_ID=...   # または --database-id
 export CLOUDFLARE_API_TOKEN=...        # D1 edit 権限
 deno task db migrate --remote
+deno task db migrate --remote --preview
 ```
+
+名前から ID を調べたいときは `deno task cf d1 list`。
 
 ローカルで Worker として確かめる:
 
