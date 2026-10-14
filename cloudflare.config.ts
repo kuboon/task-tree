@@ -7,6 +7,16 @@ import { bindings, defineConfig } from "cf/config";
 // Optional secret (`cf deploy --secrets-file`): `RP_SIGNING_KEY_JWK`, a fixed ES256 private JWK.
 // Without it the Worker generates one on first use and keeps it in D1 (`kv` table), shared by every
 // isolate. It is not declared as `bindings.secret()` because that would make it required.
+// Settings that live in the dashboard too. `cf deploy` applies this file as the whole truth, so
+// anything left out here is reset to its default (preview URLs off, logs off) on the next deploy.
+const dashboardSettings = {
+  previewUrls: true,
+  observability: {
+    issues: { enabled: true },
+    logs: { enabled: true, persist: false },
+  },
+};
+
 export default defineConfig((ctx) => {
   if (ctx.isPreview) {
     // Preview deployments (Workers Builds on non-production branches / PRs): their own D1, so
@@ -19,6 +29,7 @@ export default defineConfig((ctx) => {
         name: "task-tree",
         compatibilityDate: "2026-10-01",
         entrypoint: "web/dist/worker.js",
+        ...dashboardSettings,
         env: {
           IDP_ORIGIN: bindings.text("https://id.kbn.one"),
           RP_ORIGIN: bindings.text(""),
@@ -37,6 +48,7 @@ export default defineConfig((ctx) => {
       compatibilityDate: "2026-10-01",
       entrypoint: "web/dist/worker.js",
       domains: ["task-tree.kbn.one"],
+      ...dashboardSettings,
       env: {
         IDP_ORIGIN: bindings.text("https://id.kbn.one"),
         // This Worker's public origin; must be on the IdP's AUTHORIZE_WHITELIST (*.kbn.one is).
