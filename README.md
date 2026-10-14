@@ -30,23 +30,29 @@ claude mcp add --transport http task-tree https://task-tree.kbn.one/mcp
 
 ## デプロイ (Cloudflare Workers + D1)
 
-D1 (`task-tree`) は作成・マイグレーション済み（ID は `wrangler.toml`）。
-`task-tree.kbn.one` はカスタムドメインとして `wrangler.toml` の `routes`
-にある。
+D1 (`task-tree`) は作成・マイグレーション済み（ID は `cloudflare.config.ts`）。
+`task-tree.kbn.one` はカスタムドメインとして `cloudflare.config.ts` の `domains`
+にある。設定は wrangler ではなく `cf` CLI と `cloudflare.config.ts`。
 
 ```bash
-deno task wrangler login   # 初回のみ
-deno task deploy           # build && wrangler deploy
+deno task cf auth login   # 初回のみ
+deno task deploy     # build && cf deploy
 ```
 
-新しいマイグレーションは `deno task db migrate --remote` で流す（要
-`CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_D1_DATABASE_ID` /
-`CLOUDFLARE_API_TOKEN`）。
+新しいマイグレーションは `deno task db migrate --remote` で流す。ID は名前から
+`cf` で引ける:
+
+```bash
+deno task cf d1 list   # task-tree の uuid が database_id
+export CLOUDFLARE_ACCOUNT_ID=...
+export CLOUDFLARE_D1_DATABASE_ID=...   # または --database-id
+export CLOUDFLARE_API_TOKEN=...        # D1 edit 権限
+deno task db migrate --remote
+```
 
 ローカルで Worker として確かめる:
 
 ```bash
 deno task build
-deno task wrangler d1 execute task-tree --local --file db/migrations/<name>/up.sql
-deno task wrangler dev
+deno task cf dev
 ```
