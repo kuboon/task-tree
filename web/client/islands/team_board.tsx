@@ -154,8 +154,8 @@ export const TeamBoard = clientEntry(
       void act(() => callOp("rename_team", { teamId: teamId(), name }));
     };
 
-    const goHome = () => {
-      globalThis.location.href = routes.home.href();
+    const goToMy = () => {
+      globalThis.location.href = routes.my.href();
     };
 
     const onDelete = async () => {
@@ -166,7 +166,7 @@ export const TeamBoard = clientEntry(
       ) return;
       try {
         await callOp("delete_team", { teamId: teamId() });
-        goHome();
+        goToMy();
       } catch (e) {
         error = errorMessage(e);
         handle.update();
@@ -177,7 +177,7 @@ export const TeamBoard = clientEntry(
       if (!globalThis.confirm(`「${team?.name}」から抜けますか？`)) return;
       try {
         await callOp("leave_team", { teamId: teamId() });
-        goHome();
+        goToMy();
       } catch (e) {
         error = errorMessage(e);
         handle.update();

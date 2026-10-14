@@ -1,26 +1,52 @@
 import { css, type Handle } from "@remix-run/component";
 
-import { TeamsHome } from "../islands/teams_home.tsx";
-import { cardStyle } from "../theme.ts";
+import { routes } from "../routes.ts";
+import { buttonStyle, cardStyle } from "../theme.ts";
 
 export const title = "Task Tree";
 export const description =
   "チームでタスクと依存関係を管理するツール。id.kbn.one でサインインし、MCP からも操作できる。";
 
+const INTRO = "チームのタスクを、依存関係でつなげて管理するツールです。" +
+  "「これが終わったら次はこれ」を結んでおくと、いま着手できるタスクがひと目でわかります。";
+
+const FEATURES: [string, string][] = [
+  [
+    "依存ツリー",
+    "着手できるタスクが左端に並び、その下・右へ「終わると着手できるようになるタスク」が続きます。",
+  ],
+  [
+    "チーム",
+    "招待リンクでメンバーを集め、タスクに担当者を付けられます。チームごとに表示名も変えられます。",
+  ],
+  ["MCP", "エージェント（Claude など）からも、ブラウザと同じ操作ができます。"],
+];
+
+const SIGN_IN =
+  "サインインは id.kbn.one のパスキーで行います。チームの一覧と作成はマイページから。";
+
+/** What the app is. Your teams live on the my page. */
 export default function Home(handle: Handle<{ origin: string }>) {
   return () => (
     <>
       <h1>Task Tree</h1>
-      <p>
-        チーム用のタスク管理。タスクを親子に分解し、タスク同士の依存関係を結ぶと、
-        いま着手できるタスクがわかります。
-      </p>
-      <TeamsHome />
+      <p>{INTRO}</p>
+
+      <ul mix={featureListStyle}>
+        {FEATURES.map(([name, text]) => (
+          <li key={name}>
+            <strong>{name}</strong>：{text}
+          </li>
+        ))}
+      </ul>
+
+      <p>{SIGN_IN}</p>
+      <a mix={buttonStyle} href={routes.my.href()}>マイページへ</a>
+
       <section mix={cardStyle}>
         <h2>MCP</h2>
         <p>
-          エージェント（Claude など）からも、ブラウザと同じ操作ができます。MCP
-          クライアントにこの URL を登録してください。認証は id.kbn.one
+          MCP クライアントにこの URL を登録してください。認証は id.kbn.one
           で行います。
         </p>
         <pre
@@ -30,5 +56,11 @@ export default function Home(handle: Handle<{ origin: string }>) {
     </>
   );
 }
+
+const featureListStyle = css({
+  display: "grid",
+  gap: "0.5rem",
+  paddingInlineStart: "1.25rem",
+});
 
 const preStyle = css({ overflowX: "auto" });
