@@ -43,7 +43,8 @@
   Assets（`web/dist/public/`）がプラットフォーム側で応答する。 島の解決は
   `assets/manifest.json`（`assets.ts`）。
 - `db/migrations/` — `YYYYMMDDHHmmss_name/up.sql` + `down.sql`。Deno ホストは
-  起動時に自動適用（`db.ts`）。本番 D1 へは `deno task db migrate --remote`。
+  起動時に自動適用（`db.ts`）。本番 D1 へは `deno task db migrate --remote`（ID
+  は `cloudflare.config.ts` から読む。`scripts/db.ts`）。
 - `web/tests/` — lightpanda のブラウザ smoke（`deno task test:browser`）。
 
 ## 認証 (id.kbn.one)
