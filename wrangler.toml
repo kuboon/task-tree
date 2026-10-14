@@ -28,10 +28,11 @@ RP_ORIGIN = "https://task-tree.kbn.one"
 
 # Preview deployments (Workers Builds on non-production branches / PRs). Own D1 so previews never
 # touch production data; apply migrations with `deno task db migrate --remote` against it if needed.
-# IdP/RP origins match production, so sign-in on a preview URL is not expected to work.
+# RP_ORIGIN is empty on purpose: the app then uses each request's own origin, which is what the DPoP
+# `htu` check needs on a *.workers.dev preview URL. (Side effect: server -> IdP push is unavailable.)
 [previews.vars]
 IDP_ORIGIN = "https://id.kbn.one"
-RP_ORIGIN = "https://task-tree.kbn.one"
+RP_ORIGIN = ""
 
 [[previews.d1_databases]]
 binding = "DB"
